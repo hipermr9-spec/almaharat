@@ -2,5 +2,5 @@ flask
 flask-cors
 gunicorn
 werkzeug
-apscheduler
+apscheduler==3.10.4
 click
