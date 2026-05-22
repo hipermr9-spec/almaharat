@@ -299,9 +299,7 @@ def start_scheduler():
         print("📨 Sending scheduled emails...")
         send_to_all_emails()
 
-    # Schedule the job every 5 hours
     scheduler.add_job(job, 'interval', hours=5)
-
     scheduler.start()
     print("✅ Scheduler started: sending emails every 5 hours.")
 
