@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "gunicorn --bind 0.0.0.0:$PORT --chdir Backend/Python app:app",
+    "startCommand": "npx serve -s dist",
     "restartPolicy": "on-failure"
   }
 }
