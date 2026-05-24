@@ -9,7 +9,7 @@ COPY Backend ./Backend
 # نسخ ناتج الفرونت (Vite = dist)
 COPY --from=frontend /app/dist ./Backend/Python/static
 
-RUN pip install --no-cache-dir -r Backend/Python/requirements.txt
+RUN pip3 install --no-cache-dir -r Backend/Python/requirements.txt
 
 EXPOSE 8080
 
