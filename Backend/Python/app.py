@@ -18,7 +18,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(
     __name__,
-    static_folder="static",
+    static_folder="Backend/Python/static",
     static_url_path=""
 )
 
@@ -28,7 +28,6 @@ app = Flask(
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://almaharat.ngrok.app",
     "https://api.almaharat2.com",
 ]
 
