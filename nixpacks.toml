@@ -10,4 +10,4 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "./node_modules/.bin/serve -s dist -l $PORT"
+cmd = "./node_modules/.bin/serve -s /app/dist -l $PORT"
