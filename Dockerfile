@@ -1,33 +1,30 @@
-# ---------- FRONTEND BUILD (Node) ----------
+# ---------- FRONTEND BUILD ----------
 FROM node:20 AS frontend
 
 WORKDIR /app
 
-# نسخ ملفات npm من root
 COPY package.json package-lock.json ./
 RUN npm install
 
-# نسخ باقي المشروع
 COPY . .
 
-# build
 RUN npm run build
 
 
-# ---------- BACKEND (Python) ----------
+# ---------- BACKEND ----------
 FROM python:3.9-slim
 
 WORKDIR /app
 
+# نسخ الباك إند
 COPY Backend ./Backend
 
-# أخذ build الناتج (عدّل المسار حسب Vite/React output)
+# نسخ ناتج الفرونت (Vite = dist)
 COPY --from=frontend /app/dist ./Backend/Python/static
 
 RUN pip install --no-cache-dir -r Backend/Python/requirements.txt
 
-ENV FLASK_APP=Backend/Python/app.py
-
 EXPOSE 8080
 
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --chdir /app/Backend/Python --workers 2 app:app"]
+# تشغيل السيرفر على Railway port
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --chdir Backend/Python app:app"]
