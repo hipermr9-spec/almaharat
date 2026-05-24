@@ -25,6 +25,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://almaharat.ngrok.app",
+    "https://almaharat2.com",
 ]
 
 CORS(
@@ -948,6 +949,18 @@ def delete_post(post_id):
 threading.Thread(target=start_scheduler, daemon=True).start()
 
 WSGIRequestHandler.protocol_version = "HTTP/1.1"
+
+STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static")
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    file_path = os.path.join(STATIC_FOLDER, path)
+
+    if path != "" and os.path.exists(file_path):
+        return send_from_directory(STATIC_FOLDER, path)
+
+    return send_from_directory(STATIC_FOLDER, "index.html")
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
