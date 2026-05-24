@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['almaharat.ngrok.app'],
+    allowedHosts: ['almaharat2.com'],
     proxy: {
       '/api': {
         target: 'http://localhost:5000', // ✅ point to local Flask

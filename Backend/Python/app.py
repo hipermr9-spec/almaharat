@@ -29,7 +29,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
     "https://almaharat.ngrok.app",
-    "https://almaharat2.com",
+    "https://api.almaharat2.com",
 ]
 
 CORS(
