@@ -1,3 +1,0 @@
-[build]
-builder = "RAILPACK"
-dockerfilePath = "./DO_NOT_USE_DOCKERFILE"
