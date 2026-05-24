@@ -1,8 +1,10 @@
-[phases.setup]
-nixPkgs = ["python311"]
+providers = ["node"]
 
 [phases.install]
-cmds = ["pip install --break-system-packages -r requirements.txt"]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
 
 [start]
-cmd = "gunicorn app:app"  # adjust to your entry point
+cmd = "./node_modules/.bin/serve -s dist -l $PORT"
