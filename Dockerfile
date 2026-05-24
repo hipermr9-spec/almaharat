@@ -1,5 +1,5 @@
 # ---------- FRONTEND BUILD (Node) ----------
-FROM node:18 as frontend
+FROM node:18 AS frontend
 
 WORKDIR /app
 
