@@ -16,11 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 
-app = Flask(
-    __name__,
-    static_folder="Backend/Python/static",
-    static_url_path=""
-)
+app = Flask(__name__)
 
 # =========================
 # ✅ CORS — flask-cors
@@ -958,10 +954,8 @@ STATIC_FOLDER = os.path.join(os.path.dirname(__file__), "static")
 @app.route("/<path:path>")
 def serve_frontend(path):
     static_path = os.path.join(app.static_folder, path)
-
     if path and os.path.exists(static_path):
         return send_from_directory(app.static_folder, path)
-
     return send_from_directory(app.static_folder, "index.html")
 
 if __name__ == '__main__':
