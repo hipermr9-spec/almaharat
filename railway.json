@@ -5,6 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "node server.js && gunicorn --bind 0.0.0.0:$PORT --chdir Backend/Python app:app && serve -s Frontend/dist -l 3000"
+    "startCommand": "gunicorn --bind 0.0.0.0:$PORT --chdir Backend/Python app:app",
+    "restartPolicy": "on-failure"
   }
 }
