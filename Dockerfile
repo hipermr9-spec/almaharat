@@ -1,13 +1,16 @@
 # ---------- FRONTEND BUILD (Node) ----------
 FROM node:18 as frontend
 
-WORKDIR /frontend
+WORKDIR /app
 
-COPY Frontend ./Frontend
-
-WORKDIR /frontend/Frontend
-
+# نسخ ملفات npm من root
+COPY package.json package-lock.json ./
 RUN npm install
+
+# نسخ باقي المشروع
+COPY . .
+
+# build
 RUN npm run build
 
 
@@ -16,11 +19,10 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# copy backend
 COPY Backend ./Backend
 
-# copy built frontend from node stage
-COPY --from=frontend /frontend/Frontend/dist ./Backend/Python/static
+# أخذ build الناتج (عدّل المسار حسب Vite/React output)
+COPY --from=frontend /app/dist ./Backend/Python/static
 
 RUN pip install --no-cache-dir -r Backend/Python/requirements.txt
 
