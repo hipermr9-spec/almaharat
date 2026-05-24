@@ -1,16 +1,3 @@
-# ---------- FRONTEND BUILD ----------
-FROM node:20 AS frontend
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm install
-
-COPY . .
-
-RUN npm run build
-
-
 # ---------- BACKEND ----------
 FROM python:3.9-slim
 
