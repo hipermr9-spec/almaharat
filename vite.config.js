@@ -7,14 +7,14 @@ export default defineConfig({
     allowedHosts: ['almaharat2.com'],
     proxy: {
       '/api': {
-        target: 'http://localhost:5000', // ✅ point to local Flask
+        target: 'https://api.almaharat2.com', // ✅ point to local Flask
         changeOrigin: true,
         headers: {
           'ngrok-skip-browser-warning': 'true'
         }
       },
       '/uploads': {
-        target: 'http://localhost:5000', // ✅ for images too
+        target: 'https://api.almaharat2.com', // ✅ for images too
         changeOrigin: true,
       }
     }
