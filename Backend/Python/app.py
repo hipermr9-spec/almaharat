@@ -26,9 +26,8 @@ app = Flask(
 # ✅ CORS — flask-cors
 # =========================
 ALLOWED_ORIGINS = [
+    "https://almaharat2.com",
     "http://localhost:5173",
-    "http://localhost:3000",
-    "https://api.almaharat2.com",
 ]
 
 CORS(
