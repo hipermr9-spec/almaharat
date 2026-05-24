@@ -5,6 +5,6 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "caddy file-server --root /app/dist --listen :$PORT"
+    "startCommand": "node server.js"
   }
 }
