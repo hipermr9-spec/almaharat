@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
 // استيراد صفحاتك
@@ -18,10 +18,43 @@ import TermsOfCondition from './TermsOfCondition/Terms'
 import Posts from './Pages/postsPage'
 import AddPost from './Pages/AddPost'
 
+function OldDomainPage() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        flexDirection: 'column',
+        textAlign: 'center',
+        padding: '20px'
+      }}
+    >
+      <h1>404</h1>
+      <p>هذا دومين قديم.</p>
+      <p>
+        يمكنك الدخول من خلال:
+      </p>
+
+      <a
+        href="https://almaharat2.com"
+        style={{
+          color: '#007bff',
+          fontSize: '20px',
+          textDecoration: 'none',
+          marginTop: '10px'
+        }}
+      >
+        almaharat2.com
+      </a>
+    </div>
+  )
+}
+
 function ServerChecker({ children }) {
-  // الحالة الافتراضية "ok" عشان ما تظهر شاشة تحميل
-  const [isDown, setIsDown] = useState(false);
-  const API_BASE_URL = "https://api.almaharat2.com"; // تأكد من تحديث هذا العنوان ليتوافق مع إعداداتك في vite.config.js
+  const [isDown, setIsDown] = useState(false)
+  const API_BASE_URL = "https://api.almaharat2.com"
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -31,40 +64,51 @@ function ServerChecker({ children }) {
             "ngrok-skip-browser-warning": "true",
             "Accept": "application/json"
           }
-        });
+        })
 
-        // wait for 1.5s to check if it ok or not
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1500))
 
         if (!response.ok) {
-          setIsDown(true);
+          setIsDown(true)
         } else {
-          setIsDown(false); // السيرفر عاد للعمل
+          setIsDown(false)
         }
       } catch (error) {
-        setIsDown(true); // فشل الاتصال تماماً
+        setIsDown(true)
       }
-    };
+    }
 
-    // فحص فوري عند تحميل التطبيق لأول مرة
-    checkHealth();
+    checkHealth()
 
-    // فحص دوري كل 0.5 ثوانٍ في الخلفية بدون ما يحس المستخدم
-    const interval = setInterval(checkHealth, 500);
+    const interval = setInterval(checkHealth, 500)
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [])
 
-  // إذا انقطع الاتصال، اظهر صفحة ServerDown فوراً
   if (isDown) {
-    return <ServerDown />;
+    return <ServerDown />
   }
 
-  // غير كذا، اعرض المحتوى الطبيعي للموقع
-  return children;
+  return children
 }
 
 export default function App() {
+
+  // اسم الدومين الحالي
+  const hostname = window.location.hostname
+
+  // إذا دخل من الدومين القديم
+  if (hostname === "almaharat.ngrok.app") {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="*" element={<OldDomainPage />} />
+        </Routes>
+      </BrowserRouter>
+    )
+  }
+
+  // الدومين الرسمي
   return (
     <BrowserRouter>
       <ServerChecker>
