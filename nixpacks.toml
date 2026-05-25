@@ -7,7 +7,7 @@ nixPkgs = ["nodejs_20"]
 cmds = ["npm ci"]
 
 [phases.build]
-cmds = ["npm run build", "cp node_modules/.bin/serve /usr/local/bin/serve"]
+cmds = ["npm run build"]
 
 [start]
-cmd = "serve -s dist"
+cmd = "node node_modules/serve/build/main.js -s dist -l $PORT"
