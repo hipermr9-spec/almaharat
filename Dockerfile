@@ -5,20 +5,24 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-RUN npm install serve
 
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-RUN echo 'server{listen 8080;root /usr/share/nginx/html;index index.html;location/{try_files $uri $uri/ /index.html;}}' > /etc/nginx/conf.d/default.conf
-EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
-
-# ---------- BACKEND ----------
+# ---------- FINAL: Python backend + serves frontend ----------
 FROM python:3.9-slim
-RUN apt-get update && apt-get install -y nodejs npm
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-RUN npm install serve
+
+# Copy built frontend
+COPY --from=build /app/dist ./dist
+
+# Install serve for frontend
+RUN npm install -g serve
+
+# Install backend deps
 COPY Backend ./Backend
 RUN pip3 install --no-cache-dir -r Backend/Python/requirements.txt
+
 EXPOSE 8080
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:8080 --chdir Backend/Python app:app"]
+
+# Start both: backend on 5000, serve frontend on 8080
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:5000 --chdir Backend/Python app:app & serve -s dist -l 8080"] 
