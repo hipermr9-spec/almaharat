@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
 
@@ -31,7 +31,7 @@ function Avatar({ name, size = 40 }) {
   );
 }
 
-/* ─── Comment component ───────────────────────────────────────────────── */
+/* ─── Comment ─────────────────────────────────────────────────────────── */
 function Comment({ comment, user, onDelete }) {
   return (
     <div style={{
@@ -47,8 +47,7 @@ function Comment({ comment, user, onDelete }) {
           {user?.userid === comment.userid && (
             <button onClick={() => onDelete(comment.id)} style={{
               marginRight:'auto', background:'none', border:'none',
-              color:'#ef4444', cursor:'pointer', fontSize:12, opacity:.7,
-              padding:0
+              color:'#ef4444', cursor:'pointer', fontSize:12, opacity:.7, padding:0
             }}>✕</button>
           )}
         </div>
@@ -60,7 +59,7 @@ function Comment({ comment, user, onDelete }) {
   );
 }
 
-/* ─── Media renderer ─────────────────────────────────────────────────── */
+/* ─── MediaGrid ───────────────────────────────────────────────────────── */
 function MediaGrid({ media }) {
   if (!media?.length) return null;
   const single = media.length === 1;
@@ -76,9 +75,7 @@ function MediaGrid({ media }) {
           background:'#0f172a', overflow:'hidden'
         }}>
           {m.type === 'video'
-            ? <video src={m.url} controls style={{
-                position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'
-              }} />
+            ? <video src={m.url} controls style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }} />
             : <img src={m.url} alt="" style={{
                 position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover',
                 transition:'transform .4s', cursor:'pointer'
@@ -100,195 +97,7 @@ function MediaGrid({ media }) {
   );
 }
 
-/* ─── PostCard ───────────────────────────────────────────────────────── */
-function PostCard({ post, user, onRefresh }) {
-  const [showComments, setShowComments] = useState(false);
-  const [newComment, setNewComment]     = useState('');
-  const [submitting, setSubmitting]     = useState(false);
-  const [likes, setLikes]               = useState(post.likes?.length || 0);
-  const [dislikes, setDislikes]         = useState(post.dislikes?.length || 0);
-  const [liked, setLiked]               = useState(user && post.likes?.includes(user.userid));
-  const [disliked, setDisliked]         = useState(user && post.dislikes?.includes(user.userid));
-
-  async function handleLike() {
-    if (!user) return;
-    const res = await fetch(`${API}/api/posts/${post.id}/like`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    if (res.ok) {
-      const d = await res.json();
-      setLikes(d.likes); setDislikes(d.dislikes);
-      setLiked(l => !l); if (disliked) setDisliked(false);
-    }
-  }
-
-  async function handleDislike() {
-    if (!user) return;
-    const res = await fetch(`${API}/api/posts/${post.id}/dislike`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    if (res.ok) {
-      const d = await res.json();
-      setLikes(d.likes); setDislikes(d.dislikes);
-      setDisliked(l => !l); if (liked) setLiked(false);
-    }
-  }
-
-  async function handleComment(e) {
-    e.preventDefault();
-    if (!newComment.trim() || !user) return;
-    setSubmitting(true);
-    await fetch(`${API}/api/posts/${post.id}/comment`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid, username: user.username, text: newComment })
-    });
-    setNewComment('');
-    setSubmitting(false);
-    onRefresh();
-  }
-
-  async function handleDeleteComment(commentId) {
-    if (!user) return;
-    await fetch(`${API}/api/posts/${post.id}/comment/${commentId}`, {
-      method:'DELETE',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    onRefresh();
-  }
-
-  async function handleDeletePost() {
-    if (!user || user.userid !== post.userid) return;
-    if (!window.confirm('حذف المنشور؟')) return;
-    await fetch(`${API}/api/posts/${post.id}`, {
-      method:'DELETE',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    onRefresh();
-  }
-
-  return (
-    <article style={{
-      background:'linear-gradient(145deg, #1e293b, #0f172a)',
-      border:'1px solid rgba(255,255,255,0.07)',
-      borderRadius:20, padding:'20px 22px', marginBottom:18,
-      animation:'slideUp .4s ease',
-      boxShadow:'0 4px 30px rgba(0,0,0,.4)',
-      transition:'box-shadow .3s',
-    }}
-    onMouseOver={e => e.currentTarget.style.boxShadow='0 8px 40px rgba(99,102,241,0.15)'}
-    onMouseOut={e => e.currentTarget.style.boxShadow='0 4px 30px rgba(0,0,0,.4)'}
-    >
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
-        <Avatar name={post.username} size={44} />
-        <div style={{ flex:1, direction:'rtl' }}>
-          <div style={{ fontWeight:700, fontSize:15, color:'#e2e8f0' }}>{post.username}</div>
-          <div style={{ fontSize:12, color:'#475569' }}>{timeAgo(post.createdAt)}</div>
-        </div>
-        {user?.userid === post.userid && (
-          <button onClick={handleDeletePost} style={{
-            background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)',
-            borderRadius:8, color:'#ef4444', cursor:'pointer',
-            padding:'4px 10px', fontSize:12,
-          }}>حذف</button>
-        )}
-      </div>
-
-      {/* Body */}
-      <div style={{ direction:'rtl', marginBottom:10 }}>
-        <h3 style={{ margin:'0 0 6px', fontSize:17, fontWeight:700, color:'#f1f5f9', lineHeight:1.4 }}>
-          {post.title}
-        </h3>
-        {post.description && (
-          <p style={{ margin:0, color:'#94a3b8', fontSize:14, lineHeight:1.7 }}>
-            {post.description}
-          </p>
-        )}
-      </div>
-
-      {/* Hashtags */}
-      {post.hashtags?.length > 0 && (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8, direction:'rtl' }}>
-          {post.hashtags.map(tag => (
-            <span key={tag} style={{
-              background:'rgba(99,102,241,.15)', color:'#818cf8',
-              borderRadius:20, padding:'2px 10px', fontSize:12,
-              border:'1px solid rgba(99,102,241,.25)'
-            }}>#{tag}</span>
-          ))}
-        </div>
-      )}
-
-      {/* Media */}
-      <MediaGrid media={post.media} />
-
-      {/* Actions */}
-      <div style={{
-        display:'flex', gap:8, marginTop:16, paddingTop:14,
-        borderTop:'1px solid rgba(255,255,255,0.06)'
-      }}>
-        <ActionBtn
-          icon="👍" count={likes} active={liked}
-          activeColor="#6366f1" onClick={handleLike}
-        />
-        <ActionBtn
-          icon="👎" count={dislikes} active={disliked}
-          activeColor="#ef4444" onClick={handleDislike}
-        />
-        <ActionBtn
-          icon="💬" count={post.comments?.length || 0}
-          onClick={() => setShowComments(v => !v)}
-          active={showComments} activeColor="#10b981"
-        />
-      </div>
-
-      {/* Comments section */}
-      {showComments && (
-        <div style={{ marginTop:16, animation:'fadeIn .25s ease' }}>
-          {post.comments?.length > 0
-            ? post.comments.map(c => (
-                <Comment key={c.id} comment={c} user={user} onDelete={handleDeleteComment} />
-              ))
-            : <p style={{ color:'#475569', fontSize:13, textAlign:'center', padding:'12px 0' }}>
-                لا توجد تعليقات بعد
-              </p>
-          }
-          {user && (
-            <form onSubmit={handleComment} style={{ display:'flex', gap:8, marginTop:12 }}>
-              <input
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                placeholder="أضف تعليقاً..."
-                dir="rtl"
-                style={{
-                  flex:1, background:'rgba(255,255,255,0.05)',
-                  border:'1px solid rgba(255,255,255,0.1)',
-                  borderRadius:12, padding:'10px 14px',
-                  color:'#e2e8f0', fontSize:14, outline:'none',
-                  fontFamily:'inherit'
-                }}
-              />
-              <button type="submit" disabled={submitting} style={{
-                background: submitting ? '#334155' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-                border:'none', borderRadius:12, color:'#fff',
-                padding:'0 18px', cursor:'pointer', fontWeight:600, fontSize:14,
-                transition:'all .2s'
-              }}>إرسال</button>
-            </form>
-          )}
-        </div>
-      )}
-    </article>
-  );
-}
-
+/* ─── ActionBtn ───────────────────────────────────────────────────────── */
 function ActionBtn({ icon, count, active, activeColor, onClick }) {
   return (
     <button onClick={onClick} style={{
@@ -305,21 +114,182 @@ function ActionBtn({ icon, count, active, activeColor, onClick }) {
         e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
         e.currentTarget.style.color = '#64748b';
       }
-    }}
-    >
+    }}>
       {icon} <span>{count}</span>
     </button>
   );
 }
 
-/* ─── Main Page ──────────────────────────────────────────────────────── */
+/* ─── PostCard ────────────────────────────────────────────────────────── */
+function PostCard({ post, user, onRefresh }) {
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment]     = useState('');
+  const [submitting, setSubmitting]     = useState(false);
+  const [likes, setLikes]               = useState(post.likes?.length || 0);
+  const [dislikes, setDislikes]         = useState(post.dislikes?.length || 0);
+  const [liked, setLiked]               = useState(user && post.likes?.includes(user.userid));
+  const [disliked, setDisliked]         = useState(user && post.dislikes?.includes(user.userid));
+
+  async function handleLike() {
+    if (!user) return;
+    const res = await fetch(`${API}/api/posts/${post.id}/like`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userid: user.userid })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setLikes(d.likes); setDislikes(d.dislikes);
+      setLiked(l => !l); if (disliked) setDisliked(false);
+    }
+  }
+
+  async function handleDislike() {
+    if (!user) return;
+    const res = await fetch(`${API}/api/posts/${post.id}/dislike`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userid: user.userid })
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setLikes(d.likes); setDislikes(d.dislikes);
+      setDisliked(l => !l); if (liked) setLiked(false);
+    }
+  }
+
+  async function handleComment(e) {
+    e.preventDefault();
+    if (!newComment.trim() || !user) return;
+    setSubmitting(true);
+    await fetch(`${API}/api/posts/${post.id}/comment`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userid: user.userid, username: user.username, text: newComment })
+    });
+    setNewComment(''); setSubmitting(false); onRefresh();
+  }
+
+  async function handleDeleteComment(commentId) {
+    if (!user) return;
+    await fetch(`${API}/api/posts/${post.id}/comment/${commentId}`, {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userid: user.userid })
+    });
+    onRefresh();
+  }
+
+  async function handleDeletePost() {
+    if (!user || user.userid !== post.userid) return;
+    if (!window.confirm('حذف المنشور؟')) return;
+    await fetch(`${API}/api/posts/${post.id}`, {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ userid: user.userid })
+    });
+    onRefresh();
+  }
+
+  return (
+    <article style={{
+      background:'linear-gradient(145deg, #1e293b, #0f172a)',
+      border:'1px solid rgba(255,255,255,0.07)',
+      borderRadius:20, padding:'20px 22px', marginBottom:18,
+      animation:'slideUp .4s ease', boxShadow:'0 4px 30px rgba(0,0,0,.4)',
+      transition:'box-shadow .3s',
+    }}
+    onMouseOver={e => e.currentTarget.style.boxShadow='0 8px 40px rgba(99,102,241,0.15)'}
+    onMouseOut={e => e.currentTarget.style.boxShadow='0 4px 30px rgba(0,0,0,.4)'}
+    >
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
+        <Avatar name={post.username} size={44} />
+        <div style={{ flex:1, direction:'rtl' }}>
+          <div style={{ fontWeight:700, fontSize:15, color:'#e2e8f0' }}>{post.username}</div>
+          <div style={{ fontSize:12, color:'#475569' }}>{timeAgo(post.createdAt)}</div>
+        </div>
+        {user?.userid === post.userid && (
+          <button onClick={handleDeletePost} style={{
+            background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)',
+            borderRadius:8, color:'#ef4444', cursor:'pointer', padding:'4px 10px', fontSize:12,
+          }}>حذف</button>
+        )}
+      </div>
+
+      <div style={{ direction:'rtl', marginBottom:10 }}>
+        <h3 style={{ margin:'0 0 6px', fontSize:17, fontWeight:700, color:'#f1f5f9', lineHeight:1.4 }}>
+          {post.title}
+        </h3>
+        {post.description && (
+          <p style={{ margin:0, color:'#94a3b8', fontSize:14, lineHeight:1.7 }}>{post.description}</p>
+        )}
+      </div>
+
+      {post.hashtags?.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8, direction:'rtl' }}>
+          {post.hashtags.map(tag => (
+            <span key={tag} style={{
+              background:'rgba(99,102,241,.15)', color:'#818cf8',
+              borderRadius:20, padding:'2px 10px', fontSize:12,
+              border:'1px solid rgba(99,102,241,.25)'
+            }}>#{tag}</span>
+          ))}
+        </div>
+      )}
+
+      <MediaGrid media={post.media} />
+
+      <div style={{ display:'flex', gap:8, marginTop:16, paddingTop:14, borderTop:'1px solid rgba(255,255,255,0.06)' }}>
+        <ActionBtn icon="👍" count={likes} active={liked} activeColor="#6366f1" onClick={handleLike} />
+        <ActionBtn icon="👎" count={dislikes} active={disliked} activeColor="#ef4444" onClick={handleDislike} />
+        <ActionBtn icon="💬" count={post.comments?.length || 0} onClick={() => setShowComments(v => !v)} active={showComments} activeColor="#10b981" />
+      </div>
+
+      {showComments && (
+        <div style={{ marginTop:16, animation:'fadeIn .25s ease' }}>
+          {post.comments?.length > 0
+            ? post.comments.map(c => <Comment key={c.id} comment={c} user={user} onDelete={handleDeleteComment} />)
+            : <p style={{ color:'#475569', fontSize:13, textAlign:'center', padding:'12px 0' }}>لا توجد تعليقات بعد</p>
+          }
+          {user && (
+            <form onSubmit={handleComment} style={{ display:'flex', gap:8, marginTop:12 }}>
+              <input
+                value={newComment} onChange={e => setNewComment(e.target.value)}
+                placeholder="أضف تعليقاً..." dir="rtl"
+                style={{
+                  flex:1, background:'rgba(255,255,255,0.05)',
+                  border:'1px solid rgba(255,255,255,0.1)',
+                  borderRadius:12, padding:'10px 14px',
+                  color:'#e2e8f0', fontSize:14, outline:'none', fontFamily:'inherit'
+                }}
+              />
+              <button type="submit" disabled={submitting} style={{
+                background: submitting ? '#334155' : 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                border:'none', borderRadius:12, color:'#fff',
+                padding:'0 18px', cursor:'pointer', fontWeight:600, fontSize:14, transition:'all .2s'
+              }}>إرسال</button>
+            </form>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ─── Main Page ───────────────────────────────────────────────────────── */
 export default function PostPage() {
   const [posts, setPosts]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
-  const navigate              = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin]   = useState(false);
+  const navigate = useNavigate();
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+
+  useEffect(() => {
+    if (user?.role === 'admin') setIsAdmin(true);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    window.location.href = "/login";
+  };
 
   async function fetchPosts() {
     setLoading(true);
@@ -340,6 +310,8 @@ export default function PostPage() {
     p.username?.includes(search)
   );
 
+  if (!user) return <div className="loading">جاري الدخول...</div>;
+
   return (
     <>
       <style>{`
@@ -355,14 +327,31 @@ export default function PostPage() {
         ::-webkit-scrollbar-thumb { background:#1e293b; border-radius:3px; }
       `}</style>
 
+      <div className={`nav-overlay ${menuOpen ? "active" : ""}`} onClick={() => setMenuOpen(false)} />
+      <button className={`burger-btn ${menuOpen ? "open" : ""}`} onClick={() => setMenuOpen(!menuOpen)}>
+        <span></span><span></span><span></span>
+      </button>
+      <nav className={`main-nav ${menuOpen ? "open" : ""}`}>
+        <div className="nav-brand">منصة التعزيز ✨</div>
+        <ul className="nav-links">
+          <li onClick={() => setMenuOpen(false)}><a href="/home">الرئيسية 🏠</a></li>
+          <li onClick={() => setMenuOpen(false)}><a href="/Games">العاب 🎮</a></li>
+          <li onClick={() => setMenuOpen(false)}><a href="/posts">منشورات 📭</a></li>
+          <li onClick={() => setMenuOpen(false)}><a href="/enrichments">إثراءات 🌟</a></li>
+          <li onClick={() => setMenuOpen(false)}><a href="/settings">الإعدادات ⚙️</a></li>
+          {isAdmin && <li onClick={() => setMenuOpen(false)}><a href="/admin/admin_home">لوحة المشرف 🧑‍💼</a></li>}
+        </ul>
+        <div className="nav-footer">
+          <button onClick={handleLogout} className="btn-logout">تسجيل خروج</button>
+        </div>
+      </nav>
+
       <div style={{
         minHeight:'100vh', background:'#0a0f1e',
         backgroundImage:'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,.06) 0%, transparent 50%)',
         padding:'24px 16px', fontFamily:"'Tajawal', sans-serif"
       }}>
         <div style={{ maxWidth:660, margin:'0 auto' }}>
-
-          {/* Top bar */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
             <h1 style={{
               margin:0, fontSize:24, fontWeight:900, color:'#f1f5f9',
@@ -370,13 +359,12 @@ export default function PostPage() {
               WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'
             }}>المنشورات</h1>
             {user && (
-              <button onClick={() => navigate('/add-post')} style={{
+              <button onClick={() => navigate('/Posts/Add')} style={{
                 background:'linear-gradient(135deg, #6366f1, #8b5cf6)',
                 border:'none', borderRadius:14, color:'#fff',
                 padding:'10px 20px', cursor:'pointer', fontWeight:700,
                 fontSize:14, fontFamily:"'Tajawal',sans-serif",
-                boxShadow:'0 4px 20px rgba(99,102,241,.4)',
-                transition:'transform .2s, box-shadow .2s'
+                boxShadow:'0 4px 20px rgba(99,102,241,.4)', transition:'transform .2s, box-shadow .2s'
               }}
               onMouseOver={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 28px rgba(99,102,241,.55)'; }}
               onMouseOut={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 20px rgba(99,102,241,.4)'; }}
@@ -384,13 +372,10 @@ export default function PostPage() {
             )}
           </div>
 
-          {/* Search */}
           <div style={{ position:'relative', marginBottom:24 }}>
             <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="ابحث في المنشورات..."
-              dir="rtl"
+              value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="ابحث في المنشورات..." dir="rtl"
               style={{
                 width:'100%', background:'rgba(255,255,255,0.05)',
                 border:'1px solid rgba(255,255,255,0.09)',
@@ -401,7 +386,6 @@ export default function PostPage() {
             />
           </div>
 
-          {/* Content */}
           {loading ? (
             <div style={{ textAlign:'center', padding:60, color:'#475569' }}>
               <div style={{
@@ -417,9 +401,7 @@ export default function PostPage() {
               <p style={{ margin:0, fontSize:16 }}>لا توجد منشورات بعد</p>
             </div>
           ) : (
-            filtered.map(post => (
-              <PostCard key={post.id} post={post} user={user} onRefresh={fetchPosts} />
-            ))
+            filtered.map(post => <PostCard key={post.id} post={post} user={user} onRefresh={fetchPosts} />)
           )}
         </div>
       </div>
