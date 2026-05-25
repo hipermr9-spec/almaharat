@@ -73,7 +73,7 @@ export default function App() {
           <Route path="/" element={<Home />} />
           <Route path="/Login" element={<Login />} />
           <Route path="/Register" element={<Register />} />
-          <Route path="/Admin/AdminHome" element={<AdminHome />} />
+          <Route path="/Admin/Home" element={<AdminHome />} />
           <Route path="/Games" element={<Games />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/Server-Down" element={<ServerDown />} />

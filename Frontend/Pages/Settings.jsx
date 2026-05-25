@@ -150,7 +150,7 @@ export default function Settings() {
 
         {isAdmin && (
             <li onClick={() => setMenuOpen(false)}>
-              <a href="/admin/admin_home">لوحة المشرف 🧑‍💼</a>
+              <a href="/Admin/Home">لوحة المشرف 🧑‍💼</a>
             </li>
           )}
 

@@ -339,7 +339,7 @@ export default function PostPage() {
           <li onClick={() => setMenuOpen(false)}><a href="/posts">منشورات 📭</a></li>
           <li onClick={() => setMenuOpen(false)}><a href="/enrichments">إثراءات 🌟</a></li>
           <li onClick={() => setMenuOpen(false)}><a href="/settings">الإعدادات ⚙️</a></li>
-          {isAdmin && <li onClick={() => setMenuOpen(false)}><a href="/admin/admin_home">لوحة المشرف 🧑‍💼</a></li>}
+          {isAdmin && <li onClick={() => setMenuOpen(false)}><a href="/Admin/Home">لوحة المشرف 🧑‍💼</a></li>}
         </ul>
         <div className="nav-footer">
           <button onClick={handleLogout} className="btn-logout">تسجيل خروج</button>

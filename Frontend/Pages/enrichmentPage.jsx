@@ -73,7 +73,7 @@ export default function Enrichments() {
           <li onClick={() => setMenuOpen(false)}><a href="/settings">الإعدادات ⚙️</a></li>
           {isAdmin && (
             <li onClick={() => setMenuOpen(false)}>
-              <a href="/admin/admin_home">لوحة المشرف 🧑‍💼</a>
+              <a href="/Admin/Home">لوحة المشرف 🧑‍💼</a>
             </li>
           )}
         </ul>
