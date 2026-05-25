@@ -8,4 +8,4 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm run preview -- --port 8080 --host"
+cmd = "node node_modules/vite/bin/vite.js preview --port 8080 --host"
