@@ -3,5 +3,8 @@
   "build": {
     "builder": "NIXPACKS",
     "buildCommand": "npm run build"
+  },
+  "deploy": {
+    "deployCommand": "npm run preview -- --port 8080 --host"  
   }
 }
