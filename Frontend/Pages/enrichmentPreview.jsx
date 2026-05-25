@@ -7,7 +7,7 @@ export default function EnrichmentDetails() {
   const [item, setItem] = useState(null);
 
   useEffect(() => {
-    fetch(`https://almaharat.ngrok.app/api/enrichments/${id}`)
+    fetch(`https://api.almaharat2.com/api/enrichments/${id}`)
       .then(res => res.json())
       .then(res => setItem(res))
       .catch(err => console.error(err));

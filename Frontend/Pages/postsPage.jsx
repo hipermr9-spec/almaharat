@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API = "https://api.almaharat2.com";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
 function timeAgo(iso) {

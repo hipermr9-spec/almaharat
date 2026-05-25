@@ -9,6 +9,7 @@ RUN npm run build
 # ---------- FINAL: Python backend + serves frontend ----------
 FROM python:3.9-slim
 RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm && rm -rf /var/lib/apt/lists/*
+RUN npm install -g serve gunicorn
 
 WORKDIR /app
 

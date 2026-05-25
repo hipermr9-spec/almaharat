@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API = 'https://api.almaharat2.com';
 
 const VISIBILITY_OPTIONS = [
   { value:'public',  label:'عام 🌍',        desc:'يراه الجميع' },

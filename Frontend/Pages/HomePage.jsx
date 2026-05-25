@@ -47,7 +47,7 @@ export default function Home() {
   const fetchLivePoints = async (userid) => {
     try {
       const res = await fetch(
-        `https://almaharat.ngrok.app/api/admin/get_points/${userid}`,
+        `https://api.almaharat2.com/api/admin/get_points/${userid}`,
         { headers: { "X-Admin-Token": ADMIN_TOKEN } }
       );
       const data = await res.json();
@@ -66,7 +66,7 @@ export default function Home() {
   // ✅ X-Admin-Token header added
   const loadAllUsers = async () => {
     try {
-      const res = await fetch("https://almaharat.ngrok.app/api/admin/users", {
+      const res = await fetch("https://api.almaharat2.com/api/admin/users", {
         headers: { "X-Admin-Token": ADMIN_TOKEN },
       });
       const data = await res.json();
@@ -85,7 +85,7 @@ export default function Home() {
   // ✅ X-Admin-Token header added
   const savePoints = async (userid, points) => {
     try {
-      const res = await fetch("https://almaharat.ngrok.app/api/admin/update_points", {
+      const res = await fetch("https://api.almaharat2.com/api/admin/update_points", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

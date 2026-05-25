@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import "../App.css";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = "https://api.almaharat2.com";
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN || "changeme";
 
 const TYPES = [

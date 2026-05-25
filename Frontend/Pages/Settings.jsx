@@ -4,7 +4,7 @@ import "./App.css";
 const BASE =
   window.location.hostname === "localhost"
     ? "http://localhost:5000"
-    : "https://almaharat.ngrok.app";
+    : "https://api.almaharat2.com";
 
 export default function Settings() {
   const [user, setUser] = useState(null);
