@@ -19,7 +19,7 @@ import TermsOfCondition from './TermsOfCondition/Terms'
 function ServerChecker({ children }) {
   // الحالة الافتراضية "ok" عشان ما تظهر شاشة تحميل
   const [isDown, setIsDown] = useState(false);
-  const API_BASE_URL = "https://almaharat.ngrok.app";
+  const API_BASE_URL = "https://api.almaharat2.com"; // تأكد من تحديث هذا العنوان ليتوافق مع إعداداتك في vite.config.js
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -30,6 +30,9 @@ function ServerChecker({ children }) {
             "Accept": "application/json"
           }
         });
+
+        // wait for 1.5s to check if it ok or not
+        await new Promise(resolve => setTimeout(resolve, 1500));
 
         if (!response.ok) {
           setIsDown(true);

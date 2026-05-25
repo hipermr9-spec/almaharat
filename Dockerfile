@@ -5,6 +5,7 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
+RUN npm install serve
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
@@ -15,6 +16,7 @@ CMD ["nginx", "-g", "daemon off;"]
 # ---------- BACKEND ----------
 FROM python:3.9-slim
 WORKDIR /app
+RUN npm install serve
 COPY Backend ./Backend
 RUN pip3 install --no-cache-dir -r Backend/Python/requirements.txt
 EXPOSE 8080
