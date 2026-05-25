@@ -15,6 +15,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 # ---------- BACKEND ----------
 FROM python:3.9-slim
+RUN apt-get update && apt-get install -y nodejs npm
 WORKDIR /app
 RUN npm install serve
 COPY Backend ./Backend
