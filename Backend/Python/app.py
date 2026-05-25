@@ -16,7 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
 
 # =========================
 # ✅ CORS — flask-cors
@@ -34,12 +34,6 @@ CORS(
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     expose_headers=["Content-Type"],
 )
-
-# ✅ Needed so flask-cors attaches headers to preflight OPTIONS too
-@app.before_request
-def handle_options():
-    if request.method == "OPTIONS":
-        return app.make_default_options_response()
 
 # =========================
 # 📂 إعداد المسارات الموحدة
