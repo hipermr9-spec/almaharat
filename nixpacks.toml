@@ -1,5 +1,7 @@
+providers = ["node"]
+
 [phases.setup]
-nixPkgs = ["nodejs_20", "nodePackages.serve"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = ["npm ci"]
@@ -8,4 +10,4 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "serve -s dist -l $PORT"
+cmd = "node -e \"import('http').then(h=>import('fs').then(fs=>import('path').then(p=>{const d=p.default.join(process.cwd(),'dist');h.default.createServer((q,r)=>{let f=p.default.join(d,q.url==='/'?'index.html':q.url);fs.default.access(f,e=>{if(e)f=p.default.join(d,'index.html');fs.default.createReadStream(f).pipe(r)})}).listen(process.env.PORT||8080)})))\""
