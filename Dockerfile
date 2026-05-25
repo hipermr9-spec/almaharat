@@ -3,6 +3,8 @@ FROM node:20 AS frontend
 
 WORKDIR /app
 
+RUN npm install serve -g
+
 COPY package*.json ./
 RUN npm ci
 
@@ -17,6 +19,8 @@ WORKDIR /app
 COPY Backend ./Backend
 
 COPY --from=frontend /app/dist ./Backend/Python/static
+
+RUN npm install serve -g
 
 RUN pip3 install --no-cache-dir -r Backend/Python/requirements.txt
 
