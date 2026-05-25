@@ -15,6 +15,8 @@ import Enrichments from './Pages/Admin/enrichments'
 import Addenrichments from './Pages/Admin/enrichmentAdd'
 import ServerDown from './Pages/ServerDown'
 import TermsOfCondition from './TermsOfCondition/Terms'
+import Posts from './Pages/postsPage'
+import AddPost from './Pages/AddPost'
 
 function ServerChecker({ children }) {
   // الحالة الافتراضية "ok" عشان ما تظهر شاشة تحميل
@@ -67,19 +69,21 @@ export default function App() {
     <BrowserRouter>
       <ServerChecker>
         <Routes>
-          <Route path="/home" element={<Idont />} />
+          <Route path="/Home" element={<Idont />} />
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/admin/admin_home" element={<AdminHome />} />
+          <Route path="/Login" element={<Login />} />
+          <Route path="/Register" element={<Register />} />
+          <Route path="/Admin/AdminHome" element={<AdminHome />} />
           <Route path="/Games" element={<Games />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/server-down" element={<ServerDown />} />
-          <Route path="/enrichments" element={<EnrichmentPage />} />
-          <Route path="/enrichments/:id" element={<EnrichmentPreview />} />
-          <Route path="/admin/enrichments" element={<Enrichments />} />
-          <Route path="/admin/enrichments/add" element={<Addenrichments />} />
-          <Route path="/terms" element={<TermsOfCondition />} />
+          <Route path="/Settings" element={<Settings />} />
+          <Route path="/Server-Down" element={<ServerDown />} />
+          <Route path="/Enrichments" element={<EnrichmentPage />} />
+          <Route path="/Enrichments/:id" element={<EnrichmentPreview />} />
+          <Route path="/Admin/Enrichments" element={<Enrichments />} />
+          <Route path="/Admin/Enrichments/Add" element={<Addenrichments />} />
+          <Route path="/Terms" element={<TermsOfCondition />} />
+          <Route path="/Posts" element={<Posts />} />
+          <Route path="/Posts/Add" element={<AddPost />} />
         </Routes>
       </ServerChecker>
     </BrowserRouter>
