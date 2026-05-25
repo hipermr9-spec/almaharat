@@ -1,7 +1,5 @@
-providers = ["node"]
-
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_20", "nodePackages.serve"]
 
 [phases.install]
 cmds = ["npm ci"]
@@ -10,4 +8,4 @@ cmds = ["npm ci"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "node node_modules/serve/build/main.js -s dist -l $PORT"
+cmd = "serve -s dist -l $PORT"
