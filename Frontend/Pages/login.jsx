@@ -72,7 +72,7 @@ export default function Login() {
           <div className="terms-group">
             <span
                 className="terms-link"
-                onClick={() => (alert("اذا نسيت كلمة المرور، يرجى التواصل مع almaharatsupport@gmail.com لإعادة تعيينها"))}
+                onClick={() => (window.location.href = "/Change/Password")}
               >
                 نسيت كلمة المرور؟
             </span>

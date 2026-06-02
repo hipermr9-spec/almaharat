@@ -2,22 +2,25 @@
     {
         "userid": 2,
         "username": "test",
-        "password": "scrypt:32768:8:1$pqHhjFg5fvIFahRr$324b15b1923cfe311b959413160a0059ed689871f42192262be9cd48bc97c81b9a956d7a6c1be7ad3e813d67009b43e73f4e3e5fe83451768834213f06481c06",
+        "password": "scrypt:32768:8:1$fMx8pP5wl8w2zwR6$e1f5a4ca0c092873b534a979079044fca872e6056eeb83f90cb78b0639a634aa4e218990fd6cabe4a35c9263ff6ef43e4918f506257791e15172e54693af97cb",
         "points": 0,
-        "role": "user"
+        "role": "user",
+        "verified": false
     },
     {
         "userid": 3,
         "username": "شيخه",
         "password": "scrypt:32768:8:1$Sq1OdgaUCuVcTboL$25d982e5d51eb6c59390f5410b551cfddbdc05b6d1f69991d5c6129009f15c63ba58e5e5c99a932cd91e3e250b49f143562be7829db12b1502d55e9b7532b131",
         "points": 0,
-        "role": "admin"
+        "role": "admin",
+        "verified": true
     },
     {
         "userid": "4",
         "username": "Rakan",
         "password": "scrypt:32768:8:1$FemdnuhB6KGXAztu$7eb0264544025ef64c0e9a6a58951e82f750bd2fecc8029484d8ca9049fabed9643a678145bdb7eabffb2e051bc6dd100517474f8405b20b3021267b5716bd53",
         "points": 5,
-        "role": "admin"
+        "role": "admin",
+        "verified": true
     }
 ]

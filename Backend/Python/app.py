@@ -15,8 +15,17 @@ import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask 
+from flask_mail import Mail
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'hipermr9@gmail.com'
+app.config['MAIL_PASSWORD'] = 'bcij rdvo rpov hsgp'  # Use an app-specific password for security
+app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
 # =========================
 # ✅ CORS — flask-cors
@@ -41,6 +50,9 @@ CORS(
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR   = os.path.join(BASE_DIR, 'Data')
 IMAGES_DIR = os.path.join(DATA_DIR, 'images')
+
+PASSWORD_RESET_CODES = os.path.join(DATA_DIR, "password_reset_codes.json")
+PASSWORD_RESET_TOKENS = os.path.join(DATA_DIR, "password_reset_tokens.json")
 
 os.makedirs(DATA_DIR,   exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
@@ -90,6 +102,12 @@ def safe_user(user):
     """Return user dict without the password field."""
     return {k: v for k, v in user.items() if k != 'password'}
 
+if not os.path.exists(PASSWORD_RESET_CODES):
+    write_json(PASSWORD_RESET_CODES, [])
+
+if not os.path.exists(PASSWORD_RESET_TOKENS):
+    write_json(PASSWORD_RESET_TOKENS, [])
+
 # =========================
 # 🔐 Auth Middleware
 # =========================
@@ -138,7 +156,8 @@ def register():
         "username": username,
         "password": generate_password_hash(password),
         "points":   0,
-        "role":     "user"
+        "role":     "user",
+        "verified": False,
     }
     accounts.append(new_user)
     write_json(DB_PATH, accounts)
@@ -951,6 +970,193 @@ def serve_frontend(path):
     if path and os.path.exists(static_path):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, "index.html")
+
+@app.route("/api/checkuserhasemail", methods=["POST"])
+def checkuserhasemail():
+
+    data = request.get_json() or {}
+
+    username = (data.get("username") or "").strip()
+
+    if not username:
+        return jsonify({"error": "Username required"}), 400
+
+    users = read_json(DB_PATH)
+
+    user = next(
+        (u for u in users if u["username"] == username),
+        None
+    )
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    emails = read_json(EMAILS_PATH)
+
+    email_record = next(
+        (e for e in emails if e["userid"] == user["userid"]),
+        None
+    )
+
+    if not email_record:
+        return jsonify({"hasEmail": False}), 200
+
+    code = str(random.randint(111111, 999999))
+
+    codes = read_json(PASSWORD_RESET_CODES)
+
+    codes = [
+        c for c in codes
+        if c["username"] != username
+    ]
+
+    codes.append({
+        "username": username,
+        "code": code,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+
+    write_json(PASSWORD_RESET_CODES, codes)
+
+    send_email(
+        email_record["email"],
+        "Password Reset Code",
+        f"Your verification code is: {code}"
+    )
+
+    return jsonify({
+        "hasEmail": True
+    }), 200
+
+@app.route("/api/sendtogmail", methods=["POST"])
+def sendtogmail():
+
+    data = request.get_json() or {}
+
+    username = data.get("username")
+    code = data.get("twofacode")
+
+    codes = read_json(PASSWORD_RESET_CODES)
+
+    record = next(
+        (
+            c for c in codes
+            if c["username"] == username
+            and c["code"] == str(code)
+        ),
+        None
+    )
+
+    if not record:
+        return jsonify({
+            "valid": False
+        })
+
+    return jsonify({
+        "valid": True
+    }), 200
+
+@app.route("/api/changepassword", methods=["POST"])
+def forgot_change_password():
+
+    data = request.get_json() or {}
+
+    username = (data.get("username") or "").strip()
+    new_password = data.get("newPassword")
+    confirm_password = data.get("ConfirmNewPassword")
+
+    if not username:
+        return jsonify({"error": "Username required"}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    users = read_json(DB_PATH)
+
+    user = next((u for u in users if u["username"] == username), None)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user["password"] = generate_password_hash(new_password)
+
+    write_json(DB_PATH, users)
+
+    token = str(uuid.uuid4())
+
+    tokens = read_json(PASSWORD_RESET_TOKENS)
+
+    tokens.append({
+        "userid": user["userid"],
+        "token": token,
+        "password": new_password,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    })
+
+    write_json(PASSWORD_RESET_TOKENS, tokens)
+
+    emails = read_json(EMAILS_PATH)
+
+    email_record = next((e for e in emails if e["userid"] == user["userid"]), None)
+
+    if email_record:
+
+        url = f"https://almaharat2.com/users/user/{user['userid']}/{token}"
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = email_record["email"]
+        msg["Subject"] = "Your New Password"
+
+        html = f"""
+        <h2>Password Changed</h2>
+        <p>Click below to see your new password. Link expires in 10 minutes.</p>
+        <a href="{url}"
+           style="background:#2563eb;color:white;padding:12px 20px;
+                  text-decoration:none;border-radius:8px;">
+           See New Password
+        </a>
+        """
+
+        msg.attach(MIMEText(html, "html"))
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, email_record["email"], msg.as_string())
+        server.quit()
+
+    return jsonify({"success": True}), 200
+
+@app.route("/users/user/<string:userid>/<string:token>", methods=["GET"])
+def show_password_token(userid, token):
+
+    tokens = read_json(PASSWORD_RESET_TOKENS)
+
+    record = next((t for t in tokens if t["userid"] == userid and t["token"] == token), None)
+
+    if not record:
+        return jsonify({"success": False, "error": "Invalid token"}), 404
+
+    created_at = datetime.fromisoformat(record["createdAt"])
+
+    age = (datetime.now(timezone.utc) - created_at).total_seconds()
+
+    if age > 600:
+
+        tokens = [
+            t for t in tokens
+            if not (t["userid"] == userid and t["token"] == token)
+        ]
+
+        write_json(PASSWORD_RESET_TOKENS, tokens)
+
+        return jsonify({"success": False, "error": "Token expired"}), 400
+
+    return jsonify({
+        "success": True,
+        "password": record["password"]
+    })
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

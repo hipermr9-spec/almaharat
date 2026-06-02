@@ -17,6 +17,11 @@ import ServerDown from './Pages/ServerDown'
 import TermsOfCondition from './TermsOfCondition/Terms'
 import Posts from './Pages/postsPage'
 import AddPost from './Pages/AddPost'
+import Rank from './Pages/Ranks'
+import StudentStats from './Pages/stats'
+import Error404 from './Pages/error404'
+import ChangePassword from './Pages/changepassword'
+import tokens from './Pages/tokens'
 
 function OldDomainPage() {
   return (
@@ -96,6 +101,7 @@ export default function App() {
 
   // اسم الدومين الحالي
   const hostname = window.location.hostname
+  const pagename = window.location.pathname
 
   // إذا دخل من الدومين القديم
   if (hostname === "almaharat.ngrok.app") {
@@ -128,6 +134,12 @@ export default function App() {
           <Route path="/Terms" element={<TermsOfCondition />} />
           <Route path="/Posts" element={<Posts />} />
           <Route path="/Posts/Add" element={<AddPost />} />
+          <Route path="/Ranks" element={<Rank />} />
+          <Route path="/Stats" element={<StudentStats />} />
+          <Route path="/404" element={<Error404 />} />
+          <Route path="/Change/Password" element={<ChangePassword />} />
+          <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />
+          <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>
     </BrowserRouter>
