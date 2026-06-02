@@ -31,8 +31,7 @@ app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 # ✅ CORS — flask-cors
 # =========================
 ALLOWED_ORIGINS = [
-    "https://almaharat2.com",
-    "http://localhost:5173",
+    "https://almaharat2.com"
 ]
 
 CORS(
