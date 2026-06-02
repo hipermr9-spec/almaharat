@@ -34,13 +34,8 @@ ALLOWED_ORIGINS = [
     "https://almaharat2.com"
 ]
 
-CORS(
-    app,
-    resources={r"/api/*": {"origins": "https://almaharat2.com"}},
-    supports_credentials=True,
-    allow_headers=["Content-Type", "Authorization", "X-Admin-Token"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-)
+# Only allow your front-end domain
+CORS(app, resources={r"/api/*": {"origins": "https://almaharat2.com"}})
 
 # =========================
 # 📂 إعداد المسارات الموحدة
@@ -561,9 +556,9 @@ def get_enrichment_by_id(enrichment_id):
         print("❌ ERROR get_enrichment_by_id:", e)
         return jsonify({"error": str(e)}), 500
     
-@app.route('/api/health')
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health():
-    return {"status": "ok"}, 200
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/api/get-settings/<string:userid>", methods=["GET"])
 def get_settings(userid):
