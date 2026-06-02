@@ -22,6 +22,8 @@ import StudentStats from './Pages/stats'
 import Error404 from './Pages/error404'
 import ChangePassword from './Pages/changepassword'
 import tokens from './Pages/tokens'
+import Help from './Pages/Help'
+import HelpVRR from './Pages/verifiyrequirments'
 
 function OldDomainPage() {
   return (
@@ -139,6 +141,8 @@ export default function App() {
           <Route path="/404" element={<Error404 />} />
           <Route path="/Change/Password" element={<ChangePassword />} />
           <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />
+          <Route path="/Help" element={<Help />} />
+          <Route path="/Help/Verifiy/requirments" element={<HelpVRR />} />
           <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>
