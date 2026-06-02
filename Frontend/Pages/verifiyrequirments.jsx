@@ -53,6 +53,7 @@ export default function VerifyRequirements() {
   useEffect(() => {
     const fetchRequirements = async () => {
       try {
+        await sleep(1500); // Simulate loading delay
         const res = await fetch("https://api.almaharat2.com/api/checkrequirements", {
           method: "GET",
           headers: { "Content-Type": "application/json" },
