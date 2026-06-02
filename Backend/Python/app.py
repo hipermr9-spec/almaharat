@@ -36,11 +36,10 @@ ALLOWED_ORIGINS = [
 
 CORS(
     app,
-    origins=ALLOWED_ORIGINS,
+    resources={r"/api/*": {"origins": "https://almaharat2.com"}},
     supports_credentials=True,
-    allow_headers=["Content-Type", "X-Admin-Token", "ngrok-skip-browser-warning"],
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    expose_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Token"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 )
 
 # =========================

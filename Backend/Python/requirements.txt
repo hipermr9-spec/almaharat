@@ -1,6 +1,10 @@
 flask
 flask-cors
+flask-mail
 gunicorn
 werkzeug
 apscheduler==3.10.4
 click
+python-dotenv
+email-validator
+requests
