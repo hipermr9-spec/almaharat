@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import "./App.css";
 
 // Map each card to the key returned by the Flask API in `checks`
@@ -167,7 +168,7 @@ export default function VerifyRequirements() {
             className="vr-btn-primary"
             disabled={!hadRequired || loading}
             onClick={() =>
-              (window.location.href = `/port/helpers/submit/usersubmiter/${userData?.userid}`)
+              (Navigate("/Help/Verify/steps", { state: { userid: userData?.userid } }))
             }
           >
             طلب التحقق
