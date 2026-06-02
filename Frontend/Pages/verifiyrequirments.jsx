@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import "./VerifyRequirements.css";
+import "./App.css";
 
 // Map each card to the key returned by the Flask API in `checks`
 const requirementsData = [
