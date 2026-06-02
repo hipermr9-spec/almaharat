@@ -45,6 +45,7 @@ export default function VerifyRequirements() {
   // BUG FIX 2: added `userData` to store the API response so `userid` is accessible.
   // check user id from localstorage.
   const [userid] = useState(localStorage.getItem("userid"));
+  const [userData, setUserData] = useState(null);
   const [hadRequired, setHadRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -55,6 +56,7 @@ export default function VerifyRequirements() {
         const res = await fetch("https://api.almaharat2.com/api/checkrequirements", {
           method: "GET",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userid }),
         });
         const data = await res.json();
 
