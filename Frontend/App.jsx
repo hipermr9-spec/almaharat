@@ -142,7 +142,7 @@ export default function App() {
           <Route path="/Change/Password" element={<ChangePassword />} />
           <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />
           <Route path="/Help" element={<Help />} />
-          <Route path="/Help/Verify/requirments" element={<HelpVRR />} />
+          <Route path="/Help/Verify/requirements" element={<HelpVRR />} />
           <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>
