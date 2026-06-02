@@ -43,7 +43,8 @@ const requirementsData = [
 export default function VerifyRequirements() {
   // BUG FIX 1: removed unused `requirements` state.
   // BUG FIX 2: added `userData` to store the API response so `userid` is accessible.
-  const [userData, setUserData] = useState(null);
+  // check user id from localstorage.
+  const [userid] = useState(localStorage.getItem("userid"));
   const [hadRequired, setHadRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

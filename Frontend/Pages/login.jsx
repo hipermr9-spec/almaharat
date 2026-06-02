@@ -21,6 +21,7 @@ export default function Login() {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("userid", data.user.userid);
         window.location.href = "/home";
       } else {
         alert("⚠️ " + data.error);
