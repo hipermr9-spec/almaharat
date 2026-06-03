@@ -1002,6 +1002,56 @@ def serve_frontend(path):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, "index.html")
 
+@app.route("/api/sendemail", methods=["POST"])
+def sendemail():
+    try:
+        data = request.get_json() or {}
+
+        title   = (data.get("title") or "").strip()
+        content = (data.get("content") or "").strip()
+        html    = (data.get("styleandhtml") or "").strip()
+        useremail = (data.get("useremail") or "").strip()
+
+        if not useremail or "@" not in useremail:
+            return jsonify({"error": "Invalid useremail"}), 400
+
+        # fallback content
+        body = content if content else "No content provided"
+
+        msg = MIMEMultipart("alternative")
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = "hipermr9@gmail.com"
+        msg["Subject"] = title or "New Verification Request"
+
+        # plain text
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        # HTML version (optional)
+        if html:
+            msg.attach(MIMEText(html, "html", "utf-8"))
+
+        # add user email inside body (so you see who sent it)
+        final_body = f"""
+        New verification request
+
+        From user email: {useremail}
+
+        Message:
+        {body}
+        """
+
+        msg.set_payload(final_body)
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)  # uses your app password
+        server.sendmail(SENDER_EMAIL, "hipermr9@gmail.com", msg.as_string())
+        server.quit()
+
+        return jsonify({"success": True, "message": "Email sent"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
