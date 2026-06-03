@@ -83,8 +83,8 @@ export default function VerifyRequirements() {
       setError("لم يتم العثور على userid.");
       setLoading(false);
     }
-  }, [userid]);
-      fetchRequirements();
+  }, fetchRequirements() [userid]);
+      
 
   const metCount = userData?.checks
     ? Object.values(userData.checks).filter(Boolean).length
