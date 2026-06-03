@@ -859,10 +859,26 @@ def _check_requirements(userid: str):
 @app.route('/api/checkrequirements', methods=['GET'])
 def check_requirements():
     userid = request.args.get('userid', '').strip()
+
     if not userid:
         return jsonify({"error": "userid مطلوب"}), 400
 
+    users = read_json(DB_PATH)
+    user = next((u for u in users if u.get('userid') == userid), None)
+
+    if not user:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+
+    # تحقق مسبق
+    if user.get("verified", False):
+        return jsonify({
+            "already_verified": True,
+            "message": "انت لديك تحقق من قبل! ✅"
+        }), 200
+
+    # إذا ليس verified نكمل الفحص
     result, err = _check_requirements(userid)
+
     if err:
         return jsonify({"error": err}), 404
 

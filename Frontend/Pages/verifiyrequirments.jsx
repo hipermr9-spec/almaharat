@@ -63,6 +63,13 @@ useEffect(() => {
 
       const data = await res.json();
 
+      if (data.already_verified) {
+        setError(data.message);
+        setUserData(data);
+        setHadRequired(false);
+        return;
+      }
+
       if (res.ok) {
         setUserData(data);
         setHadRequired(data.requirements_met);
