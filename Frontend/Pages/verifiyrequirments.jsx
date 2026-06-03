@@ -51,39 +51,39 @@ export default function VerifyRequirements() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchRequirements = async () => {
-      try {
-        const res = await fetch(
-          `https://api.almaharat2.com/api/checkrequirements?userid=${encodeURIComponent(userid)}`,
-          {
-            method: "GET",
-          }
-        );
-
-        const data = await res.json();
-
-        if (res.ok) {
-          setUserData(data);
-          setHadRequired(data.requirements_met);
-        } else {
-          setError(data.error || "حدث خطأ أثناء جلب البيانات.");
+useEffect(() => {
+  const fetchRequirements = async () => {
+    try {
+      const res = await fetch(
+        `https://api.almaharat2.com/api/checkrequirements?userid=${encodeURIComponent(userid)}`,
+        {
+          method: "GET",
         }
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "تعذّر الاتصال بالخادم.");
-      } finally {
-        setLoading(false);
-      }
-    };
+      );
 
-    if (userid) {
-      fetchRequirements();
-    } else {
-      setError("لم يتم العثور على userid.");
+      const data = await res.json();
+
+      if (res.ok) {
+        setUserData(data);
+        setHadRequired(data.requirements_met);
+      } else {
+        setError(data.error || "حدث خطأ أثناء جلب البيانات.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "تعذّر الاتصال بالخادم.");
+    } finally {
       setLoading(false);
     }
-  }, fetchRequirements() [userid]);
+  };
+
+  if (userid) {
+    fetchRequirements();
+  } else {
+    setError("لم يتم العثور على userid.");
+    setLoading(false);
+  }
+}, [userid]);
       
 
   const metCount = userData?.checks
