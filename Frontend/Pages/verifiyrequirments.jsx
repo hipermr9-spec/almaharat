@@ -54,29 +54,37 @@ export default function VerifyRequirements() {
   useEffect(() => {
     const fetchRequirements = async () => {
       try {
-        await sleep(1500); // Simulate loading delay
-        const res = await fetch("https://api.almaharat2.com/api/checkrequirements", {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userid }),
-        });
+        const res = await fetch(
+          `https://api.almaharat2.com/api/checkrequirements?userid=${encodeURIComponent(userid)}`,
+          {
+            method: "GET",
+          }
+        );
+
         const data = await res.json();
 
         if (res.ok) {
-          setUserData(data);               // store full response (includes userid + checks)
+          setUserData(data);
           setHadRequired(data.requirements_met);
         } else {
           setError(data.error || "حدث خطأ أثناء جلب البيانات.");
         }
       } catch (err) {
-        setError("تعذّر الاتصال بالخادم. يرجى المحاولة مرة أخرى.");
+        console.error(err);
+        setError(err.message || "تعذّر الاتصال بالخادم.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRequirements();
-  }, []);
+    if (userid) {
+      fetchRequirements();
+    } else {
+      setError("لم يتم العثور على userid.");
+      setLoading(false);
+    }
+  }, [userid]);
+      fetchRequirements();
 
   const metCount = userData?.checks
     ? Object.values(userData.checks).filter(Boolean).length
@@ -168,7 +176,7 @@ export default function VerifyRequirements() {
             className="vr-btn-primary"
             disabled={!hadRequired || loading}
             onClick={() =>
-              (Navigate("/Help/Verify/steps", { state: { userid: userData?.userid } }))
+              (href="/port/Helpers/Verify/Request/" + userData?.userid) // navigate to request page with userid
             }
           >
             طلب التحقق
