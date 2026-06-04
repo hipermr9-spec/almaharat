@@ -24,6 +24,7 @@ import ChangePassword from './Pages/changepassword'
 import tokens from './Pages/tokens'
 import Help from './Pages/Help'
 import HelpVRR from './Pages/verifiyrequirments'
+import Chat from './Pages/chat'
 
 function OldDomainPage() {
   return (
@@ -143,6 +144,7 @@ export default function App() {
           <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />
           <Route path="/Help" element={<Help />} />
           <Route path="/Help/Verify/requirements" element={<HelpVRR />} />
+          <Route path="/Chat" element={<Chat />} />
           <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>
