@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import cookies from "js-cookie";
+import Cookies from "js-cookie";
 import "./App.css";
 
 const ADMIN_TOKEN = "changeme"; // ✅ must match ADMIN_TOKEN env var on server
