@@ -1068,7 +1068,7 @@ def chat():
 
     try:
         ai = requests.post(
-            "http://0.0.0.0:8000/api/chat",  # ✅ Points to receiver.py
+            "http://127.0.0.1:8000/api/chat"
             json={"prompt": prompt},
             timeout=60
         )
