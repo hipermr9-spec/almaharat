@@ -145,7 +145,7 @@ def login():
     app.config["SESSION_COOKIE_NAME"] = "DONT-SHARE-THAT-COOKIE"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True  # HTTPS only
+    app.config["SESSION_COOKIE_SECURE"] = True
 
     data     = request.json or {}
     username = (data.get('username') or '').strip()
@@ -153,14 +153,13 @@ def login():
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
-    
-    session["userid"]  = user["userid"]
-    session["DONT-SHARE-THAT-COOKIE"] = user
 
     accounts = read_json(DB_PATH)
     user     = next((acc for acc in accounts if acc['username'] == username), None)
 
     if user and check_password_hash(user['password'], password):
+        session["userid"] = user["userid"]
+        session["DONT-SHARE-THAT-COOKIE"] = user
         return jsonify({"user": safe_user(user)}), 200
 
     return jsonify({"error": "Invalid username or password"}), 401
