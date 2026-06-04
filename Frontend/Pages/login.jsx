@@ -22,8 +22,11 @@ export default function Login() {
       });
       const data = await res.json();
       if (res.ok) {
-        Cookies.set("DONT-SHARE-THAT-COOKIE", data.user, { path: "/" });
-        Cookies.set("userid", data.userid, { path: "/" });
+        const userData = data.user;  // ← get user from inside response
+
+        Cookies.set("user", JSON.stringify(userData));  // ✅ stringify it
+        Cookies.set("userid", userData.userid);         // ✅ correct field
+
         window.location.href = "/home";
       } else {
         alert("⚠️ " + data.error);
