@@ -19,6 +19,8 @@ import requests
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
 
+app.secret_key = "gorta-super-secret-key-2026"  # ← add this line
+
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
