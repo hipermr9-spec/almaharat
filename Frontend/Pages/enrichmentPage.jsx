@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import cookies from "js-cookie";
 import "./App.css";
 
 export default function Enrichments() {
@@ -27,7 +28,7 @@ export default function Enrichments() {
 
   // التحقق من الجلسة والصلاحيات
   useEffect(() => {
-    const sessionUser = localStorage.getItem("user");
+    const sessionUser = Cookies.get("DONT-SHARE-THAT-COOKIE");
     if (!sessionUser) {
       navigate("/login");
       return;
@@ -45,7 +46,7 @@ export default function Enrichments() {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    Cookies.remove("DONT-SHARE-THAT-COOKIE");
     navigate("/login");
   };
 

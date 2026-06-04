@@ -1,5 +1,7 @@
 import { useState } from "react";
+import cookies from "js-cookie";
 import "./App.css";
+import Cookies from "js-cookie";
 
 const BASE = window.location.hostname === "localhost"
   ? "http://localhost:5000"
@@ -20,8 +22,8 @@ export default function Login() {
       });
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        localStorage.setItem("userid", data.user.userid);
+        Cookies.set("DONT-SHARE-THAT-COOKIE", data.user, { path: "/" });
+        Cookies.set("userid", data.userid, { path: "/" });
         window.location.href = "/home";
       } else {
         alert("⚠️ " + data.error);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import cookies from "js-cookie";
 import "./App.css";
 
 // Map each card to the key returned by the Flask API in `checks`
@@ -45,7 +46,7 @@ export default function VerifyRequirements() {
   // BUG FIX 1: removed unused `requirements` state.
   // BUG FIX 2: added `userData` to store the API response so `userid` is accessible.
   // check user id from localstorage.
-  const [userid] = useState(localStorage.getItem("userid"));
+  const [userid] = useState(Cookies.get("userid"));
   const [userData, setUserData] = useState(null);
   const [hadRequired, setHadRequired] = useState(false);
   const [loading, setLoading] = useState(true);

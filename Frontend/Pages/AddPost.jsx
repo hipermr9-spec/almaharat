@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import cookies from "js-cookie";
 import './App.css';
 
 const API = 'https://api.almaharat2.com';
@@ -93,7 +94,7 @@ function UploadZone({ files, onAdd, onRemove }) {
 
 export default function AddPost() {
   const navigate = useNavigate();
-  const user     = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+  const user     = (() => { try { return JSON.parse(Cookies.get('DONT-SHARE-THAT-COOKIE')); } catch { return null; } })();
 
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');

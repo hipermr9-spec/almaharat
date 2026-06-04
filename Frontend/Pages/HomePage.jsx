@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import cookies from "js-cookie";
 import "./App.css";
 
 const ADMIN_TOKEN = "changeme"; // ✅ must match ADMIN_TOKEN env var on server
@@ -13,7 +14,7 @@ export default function Home() {
   const prevPointsRef = useRef(null);
 
   useEffect(() => {
-    const sessionUser = localStorage.getItem("user");
+    const sessionUser = Cookies.get("user");
     if (!sessionUser) {
       window.location.href = "/login";
       return;

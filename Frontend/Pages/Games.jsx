@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import "./App.css";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import cookies from "js-cookie";
+import "./App.css";
 
 export default function Games() {
   const navigate = useNavigate();
@@ -9,7 +10,7 @@ export default function Games() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("user");
+    const stored = Cookies.get("DONT-SHARE-THAT-COOKIE");
     if (stored) {
       const parsed = JSON.parse(stored);
       setUser(parsed);
@@ -18,7 +19,7 @@ export default function Games() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    Cookies.remove("DONT-SHARE-THAT-COOKIE");
     window.location.href = "/";
   };
 

@@ -15,8 +15,10 @@ const RANKS = [
     p: '#DC143C', t: '#FFB0C0', g: 'rgba(220,20,60,0.5)'    },
   { id: 'emerald',  name: 'زمرد',        icon: '💚',  min: 3000, max: 5999,
     p: '#00C86E', t: '#A0FFD4', g: 'rgba(0,200,110,0.5)'    },
-  { id: 'diamond',  name: 'الماس',       icon: '💎',  min: 6000, max: Infinity,
+  { id: 'diamond',  name: 'الماس',       icon: '💎',  min: 6000, max: 24350,
     p: '#00D4FF', t: '#C0F6FF', g: 'rgba(0,212,255,0.6)'    },
+  { id: 'top500',  name: 'افضل 500',       icon: '💯💯💯💯💯',  min: 24350, max: Infinity,
+    p: '#7a7c00', t: '#fffb00', g: 'rgba(229, 255, 0, 0.6)'    },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

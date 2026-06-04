@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Cookies from "js-cookie";
 import "./App.css";
 
 const BASE =
@@ -23,7 +24,7 @@ export default function Settings() {
 
   // ================= LOAD USER =================
   useEffect(() => {
-    const stored = localStorage.getItem("user");
+    const stored = Cookies.get("DONT-SHARE-THAT-COOKIE");
 
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -53,7 +54,7 @@ export default function Settings() {
 
   // ================= NAV =================
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    Cookies.remove("user");
     window.location.href = "/";
   };
 
@@ -123,7 +124,7 @@ export default function Settings() {
       body: JSON.stringify({ userid: user.userid }),
     });
 
-    localStorage.removeItem("user");
+    Cookies.remove("user");
     window.location.href = "/";
   };
 
@@ -146,6 +147,8 @@ export default function Settings() {
           <li><a href="/posts">منشورات 📭</a></li>
           <li><a href="/enrichments">إثراءات 🌟</a></li>
           <li><a href="/settings">الإعدادات ⚙️</a></li>
+          <li><a href="/Rank">مستوى 🏅</a></li>
+          <li><a href={user ? `/Stats/${user.userid}` : '/Stats/'}>أحصائيات 🎯</a></li>
         </ul>
 
         {isAdmin && (

@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask_mail import Mail
+import requests
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
 
@@ -141,12 +142,20 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    app.config["SESSION_COOKIE_NAME"] = "DONT-SHARE-THAT-COOKIE"
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "None"
+    app.config["SESSION_COOKIE_SECURE"] = True  # HTTPS only
+
     data     = request.json or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
+    
+    session["userid"]  = user["userid"]
+    session["DONT-SHARE-THAT-COOKIE"] = user
 
     accounts = read_json(DB_PATH)
     user     = next((acc for acc in accounts if acc['username'] == username), None)
@@ -1052,6 +1061,19 @@ def sendemail():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/api/chat", methods=["POST"])
+def chat():
+
+    prompt = request.json["prompt"]
+
+    ai = requests.post(
+        "https://api.almaharat2.com/api/chat",
+        json={"prompt": prompt},
+        timeout=60
+    )
+
+    return jsonify(ai.json())
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
