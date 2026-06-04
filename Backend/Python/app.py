@@ -1064,16 +1064,22 @@ def sendemail():
     
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    prompt = request.json.get("prompt", "")
 
-    prompt = request.json["prompt"]
-
-    ai = requests.post(
-        "https://api.almaharat2.com/api/chat",
-        json={"prompt": prompt},
-        timeout=60
-    )
-
-    return jsonify(ai.json())
+    try:
+        ai = requests.post(
+            "http://0.0.0.0:8000/api/chat",  # ✅ Points to receiver.py
+            json={"prompt": prompt},
+            timeout=60
+        )
+        ai.raise_for_status()
+        return jsonify(ai.json())
+    except requests.exceptions.ConnectionError:
+        return jsonify({"error": "AI service is offline"}), 503
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "AI service timed out"}), 504
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
