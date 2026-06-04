@@ -1065,10 +1065,9 @@ def sendemail():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     prompt = request.json.get("prompt", "")
-
     try:
         ai = requests.post(
-            "http://127.0.0.1:8000/api/chat"
+            "https://gorta_ai.up.railway.app/api/chat",  # ← Railway URL of receiver.py
             json={"prompt": prompt},
             timeout=60
         )
@@ -1076,8 +1075,6 @@ def chat():
         return jsonify(ai.json())
     except requests.exceptions.ConnectionError:
         return jsonify({"error": "AI service is offline"}), 503
-    except requests.exceptions.Timeout:
-        return jsonify({"error": "AI service timed out"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
