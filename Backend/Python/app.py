@@ -1067,7 +1067,7 @@ def chat():
     prompt = request.json.get("prompt", "")
     try:
         ai = requests.post(
-            "https://gorta_ai.up.railway.app/api/chat",  # ← Railway URL of receiver.py
+            "https://filtering-manually-reprint-liberty.trycloudflare.com/api/chat",
             json={"prompt": prompt},
             timeout=60
         )
@@ -1075,8 +1075,9 @@ def chat():
         return jsonify(ai.json())
     except requests.exceptions.ConnectionError:
         return jsonify({"error": "AI service is offline"}), 503
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "AI service timed out"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
