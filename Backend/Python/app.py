@@ -1068,7 +1068,7 @@ def chat():
     prompt = request.json.get("prompt", "")
     try:
         ai = requests.post(
-            "https://filtering-manually-reprint-liberty.trycloudflare.com/api/chat",
+            "https://five-classic-amanda-wendy.trycloudflare.com/api/chat",
             json={"prompt": prompt},
             timeout=60
         )
