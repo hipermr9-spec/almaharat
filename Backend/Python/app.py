@@ -1076,26 +1076,40 @@ def sendemail():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import google.generativeai as genai
+import os
+from dotenv import load_dotenv
 
-@app.route("/api/chat", methods=["POST"])
+# Load environment variables from .env file
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app) # Allows your React app to communicate with this backend
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+@app.route('/api/chat', methods=['POST'])
 def chat():
-    # FIX #9 — request.json raises an exception when Content-Type is wrong or body
-    #           is absent; use get_json() with a fallback instead.
-    prompt = (request.get_json() or {}).get("prompt", "")
+    data = request.json
+    user_prompt = data.get("prompt", "")
+    
+    if not user_prompt:
+        return jsonify({"error": "No prompt provided"}), 400
+    
     try:
-        ai = requests.post(
-            "https://receiver-antibody-estates-ministry.trycloudflare.com/api/chat",
-            json={"prompt": prompt},
-            timeout=60
-        )
-        ai.raise_for_status()
-        return jsonify(ai.json())
-    except requests.exceptions.ConnectionError:
-        return jsonify({"error": "AI service is offline"}), 503
-    except requests.exceptions.Timeout:
-        return jsonify({"error": "AI service timed out"}), 504
+        # Generate response using the Gemini model
+        response = model.generate_content(user_prompt)
+        return jsonify({"response": response.text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

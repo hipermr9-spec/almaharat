@@ -8,3 +8,4 @@ click
 python-dotenv
 email-validator
 requests
+google-generativeai
