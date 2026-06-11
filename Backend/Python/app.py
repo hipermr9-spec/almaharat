@@ -34,7 +34,7 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "https://almaharat2.com"}})
 
 # =========================
 # 📂 Paths
