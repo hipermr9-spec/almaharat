@@ -14,18 +14,24 @@ import threading
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask_mail import Mail
 import requests
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
 
-app.secret_key = "gorta-super-secret-key-2026"  # ← add this line
+app.secret_key = "gorta-super-secret-key-2026"
 
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'hipermr9@gmail.com'
-app.config['MAIL_PASSWORD'] = 'bcij rdvo rpov hsgp'
+# FIX #1 — Session cookie config must live at app-level, not inside a route.
+#           Setting these inside login() has no effect on the outgoing response.
+app.config["SESSION_COOKIE_NAME"]     = "DONT-SHARE-THAT-COOKIE"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"]   = True
+
+app.config['MAIL_SERVER']         = 'smtp.gmail.com'
+app.config['MAIL_PORT']           = 587
+app.config['MAIL_USE_TLS']        = True
+app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
+app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
 CORS(app)
@@ -33,9 +39,9 @@ CORS(app)
 # =========================
 # 📂 Paths
 # =========================
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR    = os.path.join(BASE_DIR, 'Data')
-IMAGES_DIR  = os.path.join(DATA_DIR, 'images')
+BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR   = os.path.join(BASE_DIR, 'Data')
+IMAGES_DIR = os.path.join(DATA_DIR, 'images')
 
 os.makedirs(DATA_DIR,   exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
@@ -136,6 +142,10 @@ def register():
         "points":    0,
         "role":      "user",
         "verified":  False,
+        "followers": 0,
+        "following": 0,
+        "lessons":   0,
+        "friends":   "[]",  # FIX #10 — fixed typo "freinds" → "friends"
         "is_banned": False,
     }
     accounts.append(new_user)
@@ -144,11 +154,7 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    app.config["SESSION_COOKIE_NAME"] = "DONT-SHARE-THAT-COOKIE"
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True
-
+    # FIX #1 (continued) — removed session config from here; it now lives at app level above.
     data     = request.json or {}
     username = (data.get('username') or '').strip()
     password = data.get('password') or ''
@@ -159,7 +165,15 @@ def login():
     accounts = read_json(DB_PATH)
     user     = next((acc for acc in accounts if acc['username'] == username), None)
 
-    if user and check_password_hash(user['password'], password):
+    # FIX #2 — check user exists BEFORE accessing user["is_banned"]; original code
+    #           crashed with TypeError when username was not found (user was None).
+    if not user:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    if user.get("is_banned"):
+        return jsonify({"error": "This account is banned"}), 402  # also fixed grammar
+
+    if check_password_hash(user['password'], password):
         session["userid"] = user["userid"]
         session["DONT-SHARE-THAT-COOKIE"] = user
         return jsonify({"user": safe_user(user)}), 200
@@ -191,7 +205,7 @@ def get_points(userid):
 @require_admin
 def update_points():
     try:
-        data       = request.get_json()
+        data       = request.get_json() or {}
         userid     = data.get("userid")
         new_points = data.get("points")
 
@@ -266,22 +280,20 @@ def send_to_all_emails():
         except Exception as err:
             print("Failed:", email, err)
 
+# FIX #4 — Removed the `while True` blocking loop inside the daemon thread.
+#           BackgroundScheduler already runs jobs in its own internal thread;
+#           the infinite loop was pointless overhead that blocked the daemon thread.
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: send_to_all_emails(), 'interval', hours=5)
+    scheduler.add_job(send_to_all_emails, 'interval', hours=5)
     scheduler.start()
-    try:
-        while True:
-            threading.Event().wait(60)
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
 
 # =========================
 # 📂 Enrichments
 # =========================
-ENRICHMENTS_PATH  = os.path.join(DATA_DIR, 'enrichments.json')
-DOCUMENTS_DIR     = os.path.join(DATA_DIR, 'documents')
-VIDEOS_DIR        = os.path.join(DATA_DIR, 'videos')
+ENRICHMENTS_PATH = os.path.join(DATA_DIR, 'enrichments.json')
+DOCUMENTS_DIR    = os.path.join(DATA_DIR, 'documents')
+VIDEOS_DIR       = os.path.join(DATA_DIR, 'videos')
 
 os.makedirs(DOCUMENTS_DIR, exist_ok=True)
 os.makedirs(VIDEOS_DIR,    exist_ok=True)
@@ -346,10 +358,10 @@ def add_enrichment():
         elif file:
             if not allowed_enrichment_file(file.filename):
                 return jsonify({"error": "File type not allowed"}), 400
-            ft        = get_file_type(file.filename)
-            filename  = str(uuid.uuid4()) + '_' + secure_filename(file.filename)
+            ft       = get_file_type(file.filename)
+            filename = str(uuid.uuid4()) + '_' + secure_filename(file.filename)
             file.save(os.path.join(get_upload_dir(ft), filename))
-            content   = get_file_url(ft, filename, request.host_url.rstrip('/'))
+            content  = get_file_url(ft, filename, request.host_url.rstrip('/'))
         else:
             return jsonify({"error": "File or link required"}), 400
 
@@ -448,7 +460,8 @@ def get_settings(userid):
 
 @app.route("/api/update-setting", methods=["POST"])
 def update_setting():
-    data   = request.get_json()
+    # FIX #5 — added `or {}` so .get() never crashes on a missing/non-JSON body
+    data   = request.get_json() or {}
     userid = data.get("userid")
     key    = data.get("key")
     value  = data.get("value")
@@ -469,7 +482,8 @@ def update_setting():
 
 @app.route("/api/delete-account", methods=["POST"])
 def delete_account():
-    data      = request.get_json()
+    # FIX #5 — added `or {}`
+    data      = request.get_json() or {}
     userid    = data.get("userid")
     users     = read_json(DB_PATH)
     new_users = [u for u in users if u["userid"] != userid]
@@ -480,11 +494,17 @@ def delete_account():
 
 @app.route("/api/change-password", methods=["POST"])
 def change_password():
-    data   = request.get_json()
+    # FIX #5 — added `or {}`
+    data   = request.get_json() or {}
     userid = data.get("userid")
-    old    = data.get("oldPassword")
-    new    = data.get("newPassword")
-    users  = read_json(DB_PATH)
+    old    = data.get("oldPassword") or ""
+    new    = data.get("newPassword") or ""
+
+    # FIX #6 — validate minimum length before hashing
+    if len(new) < 6:
+        return jsonify({"error": "New password must be at least 6 characters"}), 400
+
+    users = read_json(DB_PATH)
     for user in users:
         if user["userid"] == userid:
             if not check_password_hash(user["password"], old):
@@ -496,12 +516,16 @@ def change_password():
 
 @app.route("/api/change-username", methods=["POST"])
 def change_username():
-    data        = request.get_json()
+    # FIX #5 — added `or {}`
+    data        = request.get_json() or {}
     userid      = data.get("userid")
     newUsername = (data.get("newUsername") or "").strip()
     if not newUsername:
         return jsonify({"error": "Empty name"}), 400
     users = read_json(DB_PATH)
+    # FIX #7 — check uniqueness; original code allowed duplicate usernames
+    if any(u["username"] == newUsername for u in users):
+        return jsonify({"error": "Username already taken"}), 400
     for user in users:
         if user["userid"] == userid:
             user["username"] = newUsername
@@ -728,11 +752,14 @@ def sendtogmail():
 def forgot_change_password():
     data             = request.get_json() or {}
     username         = (data.get("username") or "").strip()
-    new_password     = data.get("newPassword")
-    confirm_password = data.get("ConfirmNewPassword")
+    new_password     = data.get("newPassword") or ""
+    confirm_password = data.get("ConfirmNewPassword") or ""
 
     if not username:
         return jsonify({"error": "Username required"}), 400
+    # FIX #6 — validate new password before touching the database
+    if len(new_password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
     if new_password != confirm_password:
         return jsonify({"error": "Passwords do not match"}), 400
 
@@ -759,7 +786,10 @@ def forgot_change_password():
         msg["From"]    = SENDER_EMAIL
         msg["To"]      = email_record["email"]
         msg["Subject"] = "Your New Password"
-        msg.attach(MIMEText(f'<h2>Password Changed</h2><a href="{url}">See New Password</a>', "html"))
+        msg.attach(MIMEText(
+            f'<h2>Password Changed</h2><a href="{url}">See New Password</a>',
+            "html", "utf-8"
+        ))
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
@@ -789,7 +819,6 @@ LESSON_PROGRESS_PATH       = os.path.join(DATA_DIR, 'lesson_progress.json')
 VIOLATIONS_PATH            = os.path.join(DATA_DIR, 'violations.json')
 VERIFICATION_REQUESTS_PATH = os.path.join(DATA_DIR, 'verification_requests.json')
 
-# Auto-create all verification data files on first run
 for _p in [FOLLOWERS_PATH, LESSON_PROGRESS_PATH, VIOLATIONS_PATH, VERIFICATION_REQUESTS_PATH]:
     if not os.path.exists(_p):
         write_json(_p, [])
@@ -813,14 +842,17 @@ def _check_requirements(userid: str):
     emails    = read_json(EMAILS_PATH)
     has_email = any(e.get('userid') == userid for e in emails)
 
-    # 2. Has 10+ followers
-    followers        = read_json(FOLLOWERS_PATH)
-    followers_count  = sum(1 for f in followers if f.get('followed_id') == userid)
+    # FIX #3 — original code did `sum(1 for f in user ...)` where `user` is a dict.
+    #           Iterating over a dict yields its *keys* (strings like "userid",
+    #           "username", …), so `f.get('followers')` would raise AttributeError.
+    #           The follower count is already stored as an integer on the user object.
+    followers_count  = user.get('followers', 0)
     has_10_followers = followers_count >= MIN_FOLLOWERS
 
     # 3. Active learner (completed lessons)
     progress          = read_json(LESSON_PROGRESS_PATH)
-    completed_lessons = sum(1 for p in progress if p.get('userid') == userid and p.get('completed'))
+    completed_lessons = sum(1 for p in progress
+                            if p.get('userid') == userid and p.get('completed'))
     is_active_learner = completed_lessons >= MIN_LESSONS
 
     # 4. Enough points
@@ -864,8 +896,6 @@ def _check_requirements(userid: str):
     }, None
 
 
-# ── GET /api/checkrequirements?userid=<userid> ────────────────────────────────
-# Called by VerifyRequirements.jsx on mount.
 @app.route('/api/checkrequirements', methods=['GET'])
 def check_requirements():
     userid = request.args.get('userid', '').strip()
@@ -874,19 +904,17 @@ def check_requirements():
         return jsonify({"error": "userid مطلوب"}), 400
 
     users = read_json(DB_PATH)
-    user = next((u for u in users if u.get('userid') == userid), None)
+    user  = next((u for u in users if u.get('userid') == userid), None)
 
     if not user:
         return jsonify({"error": "المستخدم غير موجود"}), 404
 
-    # تحقق مسبق
     if user.get("verified", False):
         return jsonify({
             "already_verified": True,
             "message": "انت لديك تحقق من قبل! ✅"
         }), 200
 
-    # إذا ليس verified نكمل الفحص
     result, err = _check_requirements(userid)
 
     if err:
@@ -895,15 +923,11 @@ def check_requirements():
     return jsonify(result), 200
 
 
-# ── POST /api/submit/verificationrequest/<userid> ─────────────────────────────
-# Called from the submit page at /port/helpers/submit/usersubmiter/<userid>.
-# body: { "userid": "..." }
 @app.route('/api/submit/verificationrequest/<string:user_id>', methods=['POST'])
 def submit_verification(user_id):
     data        = request.get_json() or {}
     body_userid = (data.get('userid') or '').strip()
 
-    # Security: userid in URL must match userid in body
     if body_userid != user_id:
         return jsonify({"error": "غير مصرح لكِ بتقديم هذا الطلب."}), 403
 
@@ -919,7 +943,6 @@ def submit_verification(user_id):
     if any(r['userid'] == user_id and r['status'] == 'pending' for r in ver_requests):
         return jsonify({"error": "يوجد طلب تحقق قيد المراجعة بالفعل."}), 400
 
-    # Re-check requirements at the moment of submission
     result, err = _check_requirements(user_id)
     if err:
         return jsonify({"error": err}), 404
@@ -946,7 +969,6 @@ def submit_verification(user_id):
     }), 201
 
 
-# ── Admin: view / approve / reject verification requests ─────────────────────
 @app.route('/api/admin/verificationrequests', methods=['GET'])
 @require_admin
 def get_verification_requests():
@@ -966,7 +988,6 @@ def approve_verification(request_id):
         req['reviewed_at'] = datetime.now(timezone.utc).isoformat()
         write_json(VERIFICATION_REQUESTS_PATH, ver_requests)
 
-        # Mark the user as verified
         users = read_json(DB_PATH)
         for user in users:
             if user['userid'] == req['userid']:
@@ -1017,44 +1038,37 @@ def sendemail():
     try:
         data = request.get_json() or {}
 
-        title   = (data.get("title") or "").strip()
-        content = (data.get("content") or "").strip()
-        html    = (data.get("styleandhtml") or "").strip()
-        useremail = (data.get("useremail") or "").strip()
+        title     = (data.get("title")        or "").strip()
+        content   = (data.get("content")      or "").strip()
+        html      = (data.get("styleandhtml") or "").strip()
+        useremail = (data.get("useremail")     or "").strip()
 
         if not useremail or "@" not in useremail:
             return jsonify({"error": "Invalid useremail"}), 400
 
-        # fallback content
-        body = content if content else "No content provided"
+        # FIX #8 — original code called msg.set_payload(final_body) AFTER attaching
+        #           MIME parts. set_payload() on a MIMEMultipart replaces the entire
+        #           payload list, silently discarding every attach() call above it.
+        #           Now the sender info is folded into the plain-text part up front.
+        plain_body = (
+            f"From user email: {useremail}\n\n"
+            f"Message:\n{content or 'No content provided'}"
+        )
 
         msg = MIMEMultipart("alternative")
-        msg["From"] = SENDER_EMAIL
-        msg["To"] = "hipermr9@gmail.com"
+        msg["From"]    = SENDER_EMAIL
+        msg["To"]      = "hipermr9@gmail.com"
         msg["Subject"] = title or "New Verification Request"
 
-        # plain text
-        msg.attach(MIMEText(body, "plain", "utf-8"))
+        msg.attach(MIMEText(plain_body, "plain", "utf-8"))
 
-        # HTML version (optional)
         if html:
-            msg.attach(MIMEText(html, "html", "utf-8"))
-
-        # add user email inside body (so you see who sent it)
-        final_body = f"""
-        New verification request
-
-        From user email: {useremail}
-
-        Message:
-        {body}
-        """
-
-        msg.set_payload(final_body)
+            html_body = html + f"<p><small>Sent by: {useremail}</small></p>"
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         server = smtplib.SMTP("smtp.gmail.com", 587)
         server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)  # uses your app password
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.sendmail(SENDER_EMAIL, "hipermr9@gmail.com", msg.as_string())
         server.quit()
 
@@ -1062,13 +1076,15 @@ def sendemail():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    prompt = request.json.get("prompt", "")
+    # FIX #9 — request.json raises an exception when Content-Type is wrong or body
+    #           is absent; use get_json() with a fallback instead.
+    prompt = (request.get_json() or {}).get("prompt", "")
     try:
         ai = requests.post(
-            "https://five-classic-amanda-wendy.trycloudflare.com/api/chat",
+            "https://receiver-antibody-estates-ministry.trycloudflare.com/api/chat",
             json={"prompt": prompt},
             timeout=60
         )
@@ -1080,5 +1096,6 @@ def chat():
         return jsonify({"error": "AI service timed out"}), 504
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

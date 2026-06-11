@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import cookies from "js-cookie";
 import './App.css';
 
-const API = 'https://api.almaharat2.com';
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
 
 const VISIBILITY_OPTIONS = [
   { value:'public',  label:'عام 🌍',        desc:'يراه الجميع' },

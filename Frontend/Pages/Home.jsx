@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
 

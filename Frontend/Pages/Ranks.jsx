@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+
 // ─── Rank Tiers ───────────────────────────────────────────────────────────────
 const RANKS = [
   { id: 'bronze',   name: 'برونزي',      icon: '🔰', min: 0,    max: 99,

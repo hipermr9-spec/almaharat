@@ -25,6 +25,8 @@ import tokens from './Pages/tokens'
 import Help from './Pages/Help'
 import HelpVRR from './Pages/verifiyrequirments'
 import Chat from './Pages/chat'
+import Profile from './Pages/Profile'
+import Loading from './Pages/Loading'
 
 function OldDomainPage() {
   return (
@@ -62,7 +64,7 @@ function OldDomainPage() {
 
 function ServerChecker({ children }) {
   const [isDown, setIsDown] = useState(false)
-  const API_BASE_URL = "https://api.almaharat2.com"
+  const API_BASE_URL = "http://localhost:5000"
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -145,6 +147,9 @@ export default function App() {
           <Route path="/Help" element={<Help />} />
           <Route path="/Help/Verify/requirements" element={<HelpVRR />} />
           <Route path="/Chat" element={<Chat />} />
+          <Route path="/Profile" element={<Profile />} />
+          <Route path="/:userid" element={<Profile />} />
+          <Route path="/Loading" element={<Loading />} />
           <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>

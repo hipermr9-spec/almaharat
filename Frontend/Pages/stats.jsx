@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// ─── Rank Tiers (shared config) ───────────────────────────────────────────────
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+
+// ─── Rank Tiers ───────────────────────────────────────────────────────────────
 const RANKS = [
-  { id: 'bronze',   name: 'برونزي',  icon: '🔰', min: 0,    max: 99,
+  { id: 'bronze',   name: 'برونزي',      icon: '🔰', min: 0,    max: 99,
     p: '#CD7F32', t: '#FDDCA8', g: 'rgba(205,127,50,0.45)'  },
-  { id: 'silver',   name: 'فضي',     icon: '⚡',  min: 100,  max: 299,
+  { id: 'silver',   name: 'فضي',         icon: '⚡',  min: 100,  max: 299,
     p: '#A0B8CE', t: '#D8EAF6', g: 'rgba(160,184,206,0.45)' },
-  { id: 'gold',     name: 'ذهبي',    icon: '⭐',  min: 300,  max: 699,
+  { id: 'gold',     name: 'ذهبي',        icon: '⭐',  min: 300,  max: 699,
     p: '#FFD700', t: '#FFF2A0', g: 'rgba(255,215,0,0.5)'    },
-  { id: 'sapphire', name: 'ياقوت',   icon: '💠',  min: 700,  max: 1499,
+  { id: 'sapphire', name: 'ياقوت',       icon: '💠',  min: 700,  max: 1499,
     p: '#4169E1', t: '#B0C4FF', g: 'rgba(65,105,225,0.5)'   },
-  { id: 'ruby',     name: 'روبي',    icon: '🔴',  min: 1500, max: 2999,
+  { id: 'ruby',     name: 'روبي',        icon: '🔴',  min: 1500, max: 2999,
     p: '#DC143C', t: '#FFB0C0', g: 'rgba(220,20,60,0.5)'    },
-  { id: 'emerald',  name: 'زمرد',    icon: '💚',  min: 3000, max: 5999,
+  { id: 'emerald',  name: 'زمرد',        icon: '💚',  min: 3000, max: 5999,
     p: '#00C86E', t: '#A0FFD4', g: 'rgba(0,200,110,0.5)'    },
-  { id: 'diamond',  name: 'الماس',   icon: '💎',  min: 6000, max: Infinity,
+  { id: 'diamond',  name: 'الماس',       icon: '💎',  min: 6000, max: 24350,
     p: '#00D4FF', t: '#C0F6FF', g: 'rgba(0,212,255,0.6)'    },
+  { id: 'top500',  name: 'افضل 500',       icon: '💯💯💯💯💯',  min: 24350, max: Infinity,
+    p: '#7a7c00', t: '#fffb00', g: 'rgba(229, 255, 0, 0.6)'    },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

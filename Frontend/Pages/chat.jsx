@@ -371,7 +371,7 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await fetch("https://api.almaharat2.com/api/chat", {
+      const res = await fetch("https://shasta-urbane-sherie.ngrok-free.dev/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
