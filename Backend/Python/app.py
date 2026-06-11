@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 
-app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), "static"))
+app = Flask(__name__)   # ← KILLS everything above it
 
 app.secret_key = "gorta-super-secret-key-2026"
 
@@ -34,7 +34,7 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)               # ← minimal CORS, no routes exist
 
 # =========================
 # 📂 Paths
@@ -1077,10 +1077,7 @@ def sendemail():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import google.generativeai as genai
-import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
