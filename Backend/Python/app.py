@@ -442,9 +442,9 @@ def get_enrichment_by_id(enrichment_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/health', methods=['GET', 'OPTIONS'])
+@app.route('/api/health', methods=['GET'])
 def health():
-    return {"status": "ok"}, 200
+    return {"status": "healthy"}, 200
 
 # =========================
 # ⚙️ User settings
