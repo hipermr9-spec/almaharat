@@ -1,7 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import Cookies from "js-cookie";
 
-// ... (Keep your existing `styles` constant here)
+// Define your CSS as a string constant
+const styles = `
+  .chat-page { display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
+  .chat-nav { background: #333; color: white; padding: 1rem; display: flex; justify-content: space-between; }
+  .chat-nav-links { list-style: none; display: flex; gap: 15px; }
+  .chat-nav-links a { color: white; text-decoration: none; }
+  .chat-wrapper { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow: hidden; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 20px; }
+  .message-row { display: flex; margin-bottom: 15px; }
+  .message-bubble { background: #f0f0f0; padding: 10px; border-radius: 10px; }
+  .message-row.user { justify-content: flex-end; }
+  .message-row.user .message-bubble { background: #007bff; color: white; }
+  .chat-input-area { padding: 20px; border-top: 1px solid #ccc; }
+  .chat-input-box { display: flex; gap: 10px; }
+  .chat-textarea { flex: 1; resize: none; padding: 10px; }
+  .chat-send-btn { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+  .suggestion-chip { margin: 5px; padding: 10px; border: 1px solid #007bff; background: white; cursor: pointer; }
+`;
 
 const SUGGESTIONS = [
   "ما هي المشتقات؟ 📐",
@@ -49,8 +66,7 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      // Pointing to your local Flask backend
-      const res = await fetch("http://localhost:5000/api/chat", {
+      const res = await fetch("https://api.almaharat2.com/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
@@ -80,7 +96,6 @@ export default function Chat() {
     <>
       <style>{styles}</style>
       <div className="chat-page">
-        {/* Navbar */}
         <nav className="chat-nav">
           <div className="chat-nav-brand">منصة المهارات ✨</div>
           <ul className="chat-nav-links">
@@ -95,17 +110,13 @@ export default function Chat() {
 
         <div className="chat-wrapper">
           <div className="chat-header">
-            <div className="chat-avatar">🤖</div>
-            <div className="chat-header-info">
-              <h2>Gorta AI</h2>
-              <p>مساعدك الذكي للرياضيات</p>
-            </div>
+            <h2>Gorta AI</h2>
+            <p>مساعدك الذكي للرياضيات</p>
           </div>
 
           <div className="chat-messages">
             {messages.length === 0 && !loading && (
               <div className="chat-empty">
-                <div className="chat-empty-icon">🧮</div>
                 <p>اسأل Gorta أي سؤال رياضي!</p>
                 <div className="chat-suggestions">
                   {SUGGESTIONS.map((s) => (
@@ -119,19 +130,11 @@ export default function Chat() {
 
             {messages.map((msg, i) => (
               <div key={i} className={`message-row ${msg.role}`}>
-                <div className="message-icon">{msg.role === "ai" ? "🤖" : "👤"}</div>
                 <div className="message-bubble">{msg.text}</div>
               </div>
             ))}
 
-            {loading && (
-              <div className="message-row ai">
-                <div className="message-icon">🤖</div>
-                <div className="message-bubble">
-                  <div className="typing-dots"><span/><span/><span/></div>
-                </div>
-              </div>
-            )}
+            {loading && <div className="message-row ai"><div className="message-bubble">جاري التفكير...</div></div>}
             <div ref={bottomRef} />
           </div>
 
@@ -146,15 +149,8 @@ export default function Chat() {
                 onKeyDown={handleKey}
                 rows={1}
               />
-              <button
-                className="chat-send-btn"
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || loading}
-              >
-                ➤
-              </button>
+              <button className="chat-send-btn" onClick={() => sendMessage()} disabled={!input.trim() || loading}>➤</button>
             </div>
-            <p className="chat-hint">اضغط Enter للإرسال • Shift+Enter لسطر جديد</p>
           </div>
         </div>
       </div>
