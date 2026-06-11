@@ -1077,33 +1077,29 @@ def sendemail():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+# ── Gemini (add near the top-level imports, not as a second app) ──────────
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
-
-app = Flask(__name__)
-CORS(app) # Allows your React app to communicate with this backend
-
-# Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+_gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data = request.json
-    user_prompt = data.get("prompt", "")
-    
+    data        = request.get_json() or {}
+    user_prompt = (data.get("prompt") or "").strip()
     if not user_prompt:
         return jsonify({"error": "No prompt provided"}), 400
-    
     try:
-        # Generate response using the Gemini model
-        response = model.generate_content(user_prompt)
+        response = _gemini_model.generate_content(user_prompt)
         return jsonify({"response": response.text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ── Entry point ───────────────────────────────────────────────────────────
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
