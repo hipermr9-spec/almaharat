@@ -27,6 +27,7 @@ import HelpVRR from './Pages/verifiyrequirments'
 import Chat from './Pages/chat'
 import Profile from './Pages/Profile'
 import Loading from './Pages/Loading'
+import Privacy from './Pages/privacy'
 
 function OldDomainPage() {
   return (
@@ -150,6 +151,7 @@ export default function App() {
           <Route path="/Profile" element={<Profile />} />
           <Route path="/:userid" element={<Profile />} />
           <Route path="/Loading" element={<Loading />} />
+          <Route path="/Privacy" element={<Privacy />} />
           <Route path="*" element={<Error404 />} />
         </Routes>
       </ServerChecker>

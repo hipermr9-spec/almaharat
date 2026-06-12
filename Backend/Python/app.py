@@ -1082,19 +1082,23 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-_gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    data        = request.get_json() or {}
-    user_prompt = (data.get("prompt") or "").strip()
-    if not user_prompt:
-        return jsonify({"error": "No prompt provided"}), 400
     try:
-        response = _gemini_model.generate_content(user_prompt)
+        data = request.json
+        prompt = data.get("prompt")
+        
+        # Use the generative model
+        model = genai.GenerativeModel('gemini-3.5-flash')
+        response = model.generate_content(prompt)
+        
         return jsonify({"response": response.text})
+    
     except Exception as e:
+        # This will help you see the EXACT error in your Railway Logs
+        print(f"CRITICAL ERROR: {str(e)}") 
         return jsonify({"error": str(e)}), 500
 
 # ── Entry point ───────────────────────────────────────────────────────────
