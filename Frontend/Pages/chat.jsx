@@ -157,6 +157,19 @@ const styles = `
   margin:5px;
 }
 
+.chat-wrapper {
+  max-width: 900px;
+  margin: 0 auto;
+  height: calc(100vh - 80px);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+
+  padding: 20px 35px 20px 20px; /* مساحة للسكرول */
+}
+
 @keyframes bounce{
   0%,80%,100%{transform:translateY(0)}
   40%{transform:translateY(-6px)}
