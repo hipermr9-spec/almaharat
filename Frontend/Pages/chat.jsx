@@ -410,6 +410,8 @@ export default function Chat() {
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
 
+  const [model, setModel] = useState("gemini-1.5-flash");
+
   const bottomRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -438,7 +440,6 @@ export default function Chat() {
 
   const sendMessage = async (text) => {
     const prompt = (text || input).trim();
-
     if (!prompt && !image) return;
     if (loading) return;
 
@@ -454,15 +455,16 @@ export default function Chat() {
     try {
       const formData = new FormData();
       formData.append("prompt", prompt);
+      formData.append("model", model);
 
-      if (image) {
-        formData.append("image", image);
-      }
+      if (image) formData.append("image", image);
 
       const res = await fetch("https://api.almaharat2.com/api/chat", {
         method: "POST",
         body: formData
       });
+
+      if (!res.ok) throw new Error("API ERROR");
 
       const data = await res.json();
 
@@ -470,14 +472,13 @@ export default function Chat() {
         ...prev,
         {
           role: "ai",
-          text: data.response || data.answer || "No response"
+          text: data.response || "ما فيه رد من السيرفر"
         }
       ]);
-
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "ai", text: "❌ Server error" }
+        { role: "ai", text: "❌ خطأ في السيرفر أو CORS" }
       ]);
     }
 
@@ -489,85 +490,129 @@ export default function Chat() {
   if (!user) return null;
 
   return (
-    <>
-      <style>{styles}</style>
+    <div dir="rtl" style={{ minHeight: "100vh", background: "#0b1120", color: "white" }}>
 
-      <div className="chat-page">
-        <div className="chat-wrapper">
+      {/* NAVBAR */}
+      <div className="chat-nav">
+        <div className="chat-nav-brand">📘 منصة المهارات</div>
 
-          <div className="chat-messages">
-            {messages.map((m, i) => (
-              <div key={i} className={`message-row ${m.role}`}>
-                <div className="message-bubble">
+        <ul className="chat-nav-links">
+          <li><a href="#">الرئيسية</a></li>
+          <li><a href="#">الدردشة</a></li>
+          <li><a href="#">الإعدادات</a></li>
+        </ul>
+      </div>
 
-                  {m.image && (
-                    <img
-                      src={m.image}
-                      style={{ maxWidth: 200, borderRadius: 10 }}
-                    />
-                  )}
+      <div className="chat-wrapper">
 
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {m.text}
-                  </ReactMarkdown>
+        {/* MESSAGES */}
+        <div className="chat-messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`message-row ${m.role}`}>
+              <div className="message-bubble">
 
-                </div>
+                {m.image && (
+                  <img
+                    src={m.image}
+                    style={{ maxWidth: 200, borderRadius: 10 }}
+                  />
+                )}
+
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {m.text}
+                </ReactMarkdown>
+
               </div>
-            ))}
-
-            {loading && (
-              <div className="message-row ai">
-                <div className="message-bubble">Thinking...</div>
-              </div>
-            )}
-
-            <div ref={bottomRef} />
-          </div>
-
-          {/* INPUT */}
-          <div className="chat-input-area">
-            <div className="chat-input-box">
-
-              <input
-                type="file"
-                accept="image/*"
-                ref={fileRef}
-                hidden
-                onChange={handleImage}
-              />
-
-              <button
-                className="chat-send-btn"
-                onClick={() => fileRef.current.click()}
-              >
-                📷
-              </button>
-
-              <textarea
-                className="chat-textarea"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-              />
-
-              <button
-                className="chat-send-btn"
-                onClick={() => sendMessage()}
-              >
-                ➤
-              </button>
-
             </div>
+          ))}
 
-            {preview && (
-              <img
-                src={preview}
-                style={{ width: 120, marginTop: 10, borderRadius: 10 }}
-              />
-            )}
+          {loading && (
+            <div className="message-row ai">
+              <div className="message-bubble">جاري التفكير...</div>
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* SUGGESTIONS */}
+        <div className="suggestions-container" style={{ padding: "0 20px" }}>
+          {SUGGESTIONS.map((s, i) => (
+            <button
+              key={i}
+              className="suggestion-chip"
+              onClick={() => sendMessage(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* INPUT */}
+        <div className="chat-input-area">
+
+          {/* MODEL SELECT */}
+          <div style={{ marginBottom: 10 }}>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              style={{
+                background: "#1e293b",
+                color: "white",
+                padding: "8px",
+                borderRadius: "8px",
+                border: "1px solid #334155"
+              }}
+            >
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            </select>
           </div>
+
+          <div className="chat-input-box">
+
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileRef}
+              hidden
+              onChange={handleImage}
+            />
+
+            <button
+              className="chat-send-btn"
+              onClick={() => fileRef.current.click()}
+            >
+              📷
+            </button>
+
+            <textarea
+              className="chat-textarea"
+              value={input}
+              placeholder="اكتب رسالتك هنا..."
+              onChange={(e) => setInput(e.target.value)}
+            />
+
+            <button
+              className="chat-send-btn"
+              onClick={() => sendMessage()}
+            >
+              ➤
+            </button>
+
+          </div>
+
+          {preview && (
+            <img
+              src={preview}
+              style={{ width: 120, marginTop: 10, borderRadius: 10 }}
+            />
+          )}
 
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1085,37 +1085,42 @@ def sendemail():
         return jsonify({"error": str(e)}), 500
     
 import base64
-from dotenv import load_dotenv
 import google.generativeai as genai
+from dotenv import load_dotenv
 
 load_dotenv()
 
+app = Flask(__name__)
+CORS(app)
+
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
-# 🧠 Use vision model (IMPORTANT)
-model = genai.GenerativeModel("gemini-3.5-flash")
 
-@app.route('/api/chat', methods=['POST'])
+def get_model(name):
+    try:
+        return genai.GenerativeModel(name)
+    except:
+        return genai.GenerativeModel("gemini-1.5-flash")
+
+
+@app.route("/api/chat", methods=["POST"])
 def chat():
     try:
-        prompt = request.form.get("prompt")
+        prompt = request.form.get("prompt", "")
+        model_name = request.form.get("model", "gemini-1.5-flash")
 
-        # 📷 image file (optional)
+        model = get_model(model_name)
+
         image_file = request.files.get("image")
 
-        # ───────── CASE 1: TEXT ONLY ─────────
+        # TEXT ONLY
         if not image_file:
             response = model.generate_content(prompt)
+            return jsonify({"response": response.text})
 
-            return jsonify({
-                "response": response.text
-            })
-
-        # ───────── CASE 2: IMAGE + TEXT ─────────
-
+        # IMAGE + TEXT
         image_bytes = image_file.read()
 
-        # Gemini needs base64 image
         image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
         image_part = {
@@ -1123,21 +1128,13 @@ def chat():
             "data": image_base64
         }
 
-        response = model.generate_content([
-            prompt,
-            image_part
-        ])
+        response = model.generate_content([prompt, image_part])
 
-        return jsonify({
-            "response": response.text
-        })
+        return jsonify({"response": response.text})
 
     except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-
-        return jsonify({
-            "error": str(e)
-        }), 500
+        print("ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
