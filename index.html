@@ -2,11 +2,197 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/public/vite.png" />
+    <link rel="icon" type="image/png" href="public/vite.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tahzez-2</title>
+    <title>تعزيز مهارات 2</title>
+    <style>
+      #app-loader, #app-loader *, #app-loader *::before, #app-loader *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: "Google Sans", Roboto, Arial, sans-serif;
+        z-index: 9999;
+        transition: opacity 0.35s ease;
+      }
+      #app-loader.fading { opacity: 0; pointer-events: none; }
+
+      .gpc-logo {
+        width: 108px;
+        height: 108px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 6px rgba(26, 115, 232, 0.22));
+        animation: gpcPopIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+      }
+      @keyframes gpcPopIn {
+        from { opacity:0; transform:scale(0.5); }
+        to   { opacity:1; transform:scale(1); }
+      }
+
+      .gpc-track {
+        margin-top: 28px;
+        width: 240px;
+        height: 3px;
+        border-radius: 3px;
+        background: #e8eaed;
+        overflow: hidden;
+        position: relative;
+        opacity: 0;
+        animation: gpcFadeIn 0.25s 0.5s ease forwards;
+      }
+
+      .gpc-ind {
+        position: absolute;
+        inset: 0 auto 0 0;
+        height: 100%;
+        width: 30%;
+        background: #1a73e8;
+        border-radius: 3px;
+        animation: gpcInd1 1.6s cubic-bezier(0.65,0.815,0.735,0.395) infinite;
+      }
+      .gpc-ind::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: #1a73e8;
+        animation: gpcInd2 1.6s cubic-bezier(0.165,0.84,0.44,1) 0.8s infinite;
+      }
+      @keyframes gpcInd1 {
+        0%  { left:-35%;  width:35%;  }
+        60% { left:100%;  width:100%; }
+        to  { left:100%;  width:35%;  }
+      }
+      @keyframes gpcInd2 {
+        0%  { left:-200%; width:200%; }
+        60% { left:107%;  width:1%; }
+        to  { left:107%;  width:1%; }
+      }
+
+      .gpc-det {
+        position: absolute;
+        inset: 0;
+        background: #1a73e8;
+        border-radius: 3px;
+        transform-origin: left center;
+        transition: transform 0.2s ease;
+        transform: scaleX(0);
+      }
+
+      .gpc-label {
+        margin-top: 18px;
+        font-size: 13px;
+        color: #5f6368;
+        letter-spacing: 0.01em;
+        opacity: 0;
+        animation: gpcFadeIn 0.25s 0.55s ease forwards;
+        min-height: 20px;
+      }
+
+      @keyframes gpcFadeIn { to { opacity:1; } }
+    </style>
   </head>
   <body>
+    <div id="app-loader">
+      <img class="gpc-logo" src="/vite.png" width="108" height="108" alt="App icon" />
+      <div class="gpc-track">
+        <div class="gpc-ind" id="gpc-ind"></div>
+      </div>
+      <p class="gpc-label" id="gpc-label">Loading…</p>
+    </div>
+
+    <script>
+      (function () {
+        var MIN_MS = 600;
+        var loaded = 0;
+        var total = 0;
+        var minDone = false;
+        var pageDone = false;
+        var finished = false;
+        var switched = false;
+
+        var loaderEl = document.getElementById("app-loader");
+        var trackEl  = loaderEl.querySelector(".gpc-track");
+        var labelEl  = document.getElementById("gpc-label");
+
+        function render() {
+          if (total > 0) {
+            if (!switched) {
+              trackEl.innerHTML = '<div class="gpc-det" id="gpc-det"></div>';
+              switched = true;
+            }
+            var pct = Math.min(loaded / total, 1);
+            document.getElementById("gpc-det").style.transform = "scaleX(" + pct + ")";
+            labelEl.textContent = "Loading… " + loaded + " / " + total + " resources";
+          } else {
+            labelEl.textContent = "Loading…";
+          }
+        }
+
+        function finish() {
+          if (finished) return;
+          if (!minDone || !pageDone) return;
+          finished = true;
+          loaderEl.classList.add("fading");
+          setTimeout(function () {
+            loaderEl.remove();
+          }, 380);
+        }
+
+        /* ── 1. Minimum display time ── */
+        setTimeout(function () {
+          minDone = true;
+          finish();
+        }, MIN_MS);
+
+        /* ── 2. Estimate total resources from DOM ── */
+        var domResources = document.querySelectorAll(
+          "script[src], link[rel=stylesheet], link[rel=icon]," +
+          "link[rel='shortcut icon'], img[src], source[src]"
+        ).length;
+        var already = performance.getEntriesByType("resource").length;
+        total = Math.max(domResources, already, 1);
+        loaded = already;
+        render();
+
+        /* ── 3. PerformanceObserver — every browser resource ── */
+        try {
+          var obs = new PerformanceObserver(function (list) {
+            loaded += list.getEntries().length;
+            total = Math.max(total, loaded);
+            render();
+          });
+          obs.observe({ type: "resource", buffered: true });
+        } catch (e) {
+          // Safari < 14 fallback — window "load" below still covers us
+        }
+
+        /* ── 4. window "load" — fires when ALL resources are done ── */
+        function onLoad() {
+          var final = performance.getEntriesByType("resource").length;
+          loaded = final;
+          total = final;
+          render();
+          pageDone = true;
+          finish();
+        }
+
+        if (document.readyState === "complete") {
+          onLoad();
+        } else {
+          window.addEventListener("load", onLoad, { once: true });
+        }
+      })();
+    </script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
