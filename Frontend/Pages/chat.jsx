@@ -407,9 +407,12 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const bottomRef = useRef(null);
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState(null);
 
-  // التأكد من تسجيل الدخول وقراءة الكوكيز بأمان
+  const bottomRef = useRef(null);
+  const fileRef = useRef(null);
+
   useEffect(() => {
     const sessionUser = Cookies.get("user");
 
@@ -418,60 +421,69 @@ export default function Chat() {
       return;
     }
 
-    try {
-      setUser(JSON.parse(sessionUser));
-    } catch (error) {
-      console.error("خطأ في قراءة بيانات المستخدم:", error);
-      Cookies.remove("user");
-      window.location.href = "/login";
-    }
+    setUser(JSON.parse(sessionUser));
   }, []);
 
-  // التمرير التلقائي لأسفل
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  const handleImage = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setImage(file);
+    setPreview(URL.createObjectURL(file));
+  };
+
   const sendMessage = async (text) => {
     const prompt = (text || input).trim();
 
-    if (!prompt || loading) return;
+    if (!prompt && !image) return;
+    if (loading) return;
 
     setInput("");
-    setMessages(prev => [...prev, { role: "user", text: prompt }]);
+
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: prompt, image: preview }
+    ]);
+
     setLoading(true);
 
     try {
+      const formData = new FormData();
+      formData.append("prompt", prompt);
+
+      if (image) {
+        formData.append("image", image);
+      }
+
       const res = await fetch("https://api.almaharat2.com/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ prompt })
+        body: formData
       });
-
-      if (!res.ok) throw new Error("استجابة السيرفر غير ناجحة");
 
       const data = await res.json();
 
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
           role: "ai",
-          text: data.response || data.message || data.reply || data.error || "خطأ غير معروف"
+          text: data.response || data.answer || "No response"
         }
       ]);
+
     } catch (err) {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        {
-          role: "ai",
-          text: "⚠️ تعذّر الاتصال بالخادم. يرجى المحاولة لاحقاً."
-        }
+        { role: "ai", text: "❌ Server error" }
       ]);
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
+    setImage(null);
+    setPreview(null);
   };
 
   if (!user) return null;
@@ -480,81 +492,80 @@ export default function Chat() {
     <>
       <style>{styles}</style>
 
-      <div className="chat-page" dir="rtl"> {/* إضافة اتجاه النص العربي */}
-        <nav className="chat-nav">
-          <div className="chat-nav-brand">منصة المهارات ✨</div>
-          <ul className="chat-nav-links">
-            <li><a href="/home">الرئيسية 🏠</a></li>
-            <li><a href="/chat">المحادثة 🤖</a></li>
-          </ul>
-        </nav>
-
+      <div className="chat-page">
         <div className="chat-wrapper">
-          <div className="chat-messages">
-            {messages.length === 0 && (
-              <div className="suggestions-container">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s}
-                    className="suggestion-chip"
-                    onClick={() => sendMessage(s)}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
 
-            {messages.map((msg, i) => (
-              <div key={i} className={`message-row ${msg.role}`}>
+          <div className="chat-messages">
+            {messages.map((m, i) => (
+              <div key={i} className={`message-row ${m.role}`}>
                 <div className="message-bubble">
+
+                  {m.image && (
+                    <img
+                      src={m.image}
+                      style={{ maxWidth: 200, borderRadius: 10 }}
+                    />
+                  )}
+
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.text}
+                    {m.text}
                   </ReactMarkdown>
+
                 </div>
               </div>
             ))}
 
             {loading && (
               <div className="message-row ai">
-                <div className="message-bubble">
-                  <div className="typing">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                </div>
+                <div className="message-bubble">Thinking...</div>
               </div>
             )}
 
             <div ref={bottomRef} />
           </div>
 
+          {/* INPUT */}
           <div className="chat-input-area">
             <div className="chat-input-box">
+
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileRef}
+                hidden
+                onChange={handleImage}
+              />
+
+              <button
+                className="chat-send-btn"
+                onClick={() => fileRef.current.click()}
+              >
+                📷
+              </button>
+
               <textarea
                 className="chat-textarea"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="اكتب سؤالك هنا..."
-                rows={1}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
               />
+
               <button
                 className="chat-send-btn"
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || loading}
-                aria-label="إرسال الرسالة"
               >
                 ➤
               </button>
+
             </div>
+
+            {preview && (
+              <img
+                src={preview}
+                style={{ width: 120, marginTop: 10, borderRadius: 10 }}
+              />
+            )}
           </div>
+
         </div>
       </div>
     </>
