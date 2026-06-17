@@ -34,7 +34,7 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app)               # ← minimal CORS, no routes exist
+CORS(app, resources={r"/*": {"origins": ["https://almaharat2.com"]}})
 
 # =========================
 # 📂 Paths
@@ -442,9 +442,16 @@ def get_enrichment_by_id(enrichment_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/health', methods=['GET', 'OPTIONS'])
 def health():
-    return {"status": "healthy"}, 200
+    if request.method == "OPTIONS":
+        return "", 204
+
+    response = jsonify({"status": "healthy"})
+    response.headers.add("Access-Control-Allow-Origin", "https://almaharat2.com")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,OPTIONS")
+    return response, 200
 
 # =========================
 # ⚙️ User settings
