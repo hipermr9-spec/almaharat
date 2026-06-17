@@ -34,12 +34,8 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app, resources={
-    r"/*": {
-        "origins": ["https://almaharat2.com", "http://localhost:5173"],
-        "supports_credentials": True
-    }
-})
+# 🔥 THIS IS THE ONLY CORS YOU NEED
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.after_request
 def after_request(response):
@@ -47,6 +43,11 @@ def after_request(response):
     response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
     response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
     return response
+
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
 
 # =========================
 # 📂 Paths
@@ -1102,10 +1103,13 @@ app = Flask(__name__)
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 # 🧠 Use vision model (IMPORTANT)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-3.5-flash")
 
-@app.route('/api/chat', methods=['POST'])
+@app.route('/api/chat', methods=['POST', 'OPTIONS'])
 def chat():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+    
     try:
         prompt = request.form.get("prompt")
 
