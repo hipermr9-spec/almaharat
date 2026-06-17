@@ -1090,9 +1090,7 @@ def sendemail():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-import os
 import base64
-from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import google.generativeai as genai
 
