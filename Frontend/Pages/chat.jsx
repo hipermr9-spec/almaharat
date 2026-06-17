@@ -60,6 +60,20 @@ export default function Chat() {
       });
       
       const data = await res.json();
+
+      console.log(data);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text:
+          data.response ||
+          data.message ||
+          data.reply ||
+          JSON.stringify(data)
+        },
+      ]);
       setMessages((prev) => [...prev, { role: "ai", text: data.response || "عذراً، حدث خطأ." }]);
     } catch (err) {
       setMessages((prev) => [...prev, { role: "ai", text: "⚠️ تعذّر الاتصال بخادم Gorta AI." }]);
