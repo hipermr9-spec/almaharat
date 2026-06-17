@@ -1090,9 +1090,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
-
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
