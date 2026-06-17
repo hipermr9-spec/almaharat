@@ -34,7 +34,19 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app, origins=["https://almaharat2.com"])
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://almaharat2.com", "http://localhost:5173"],
+        "supports_credentials": True
+    }
+})
+
+@app.after_request
+def after_request(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+    return response
 
 # =========================
 # 📂 Paths
