@@ -1,5 +1,4 @@
 import { useState } from "react";
-import cookies from "js-cookie";
 import "./App.css";
 import Cookies from "js-cookie";
 
