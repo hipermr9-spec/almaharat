@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -400,7 +401,51 @@ const SUGGESTIONS = [
   "ما هو التكامل؟ 🔢"
 ];
 
+// 🛠️ نقل المكون خارج النطاق الداخلي لحل الـ ReferenceError بشكل قطعي
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Fallback
+    }
+  };
+
+  return (
+    <div className="code-block" dir="ltr">
+      <div className="code-block-header">
+        <span>{language}</span>
+        <button className="code-block-copy" onClick={handleCopy}>
+          {copied ? "✅ Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="code-block-pre"><code>{code}</code></pre>
+    </div>
+  );
+}
+
+const markdownComponents = {
+  pre: ({ children }) => <>{children}</>,
+  code(props) {
+    const { className, children } = props;
+    const match = /language-(\w+)/.exec(className || "");
+    const codeText = String(children).replace(/\n$/, "");
+
+    if (!match) {
+      return <code className="inline-code">{children}</code>;
+    }
+    return <CodeBlock language={match[1]} code={codeText} />;
+  },
+};
+
 export default function Chat() {
+  const { chatid } = useParams(); // قراءة معرف الشات من الرابط تلقائياً
+  const navigate = useNavigate();
+
   const [user, setUser] = useState(null);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -410,7 +455,7 @@ export default function Chat() {
   const [model, setModel] = useState(MODELS[0]);
 
   const bottomRef = useRef(null);
-  const skipHistoryFetch = useRef(false); // حماية لمنع سباق البيانات ومسح الشات الجديد فجأة
+  const skipHistoryFetch = useRef(false);
 
   useEffect(() => {
     const session = Cookies.get("user");
@@ -432,24 +477,28 @@ export default function Chat() {
     }
   }, [user]);
 
+  // 🛠️ مزامنة حالة الشات مع مسار الـ URL لتحديث الشاشة تلقائياً عند تغيير الرابط
   useEffect(() => {
-    if (!user || !activeChatId) {
+    if (!user) return;
+
+    if (chatid) {
+      setActiveChatId(chatid);
+      if (skipHistoryFetch.current) {
+        skipHistoryFetch.current = false;
+      } else {
+        fetchChatMessages(chatid);
+      }
+    } else {
+      setActiveChatId(null);
       setMessages([]);
-      return;
     }
-    // إذا تم تشغيل حماية الشات الجديد، تخطى الجلب حتى لا يمسح الرسائل الحالية
-    if (skipHistoryFetch.current) {
-      skipHistoryFetch.current = false;
-      return;
-    }
-    fetchChatMessages(activeChatId);
-  }, [activeChatId, user]);
+  }, [chatid, user]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // 🛠️ أنميشن محاكي ومطور للـ Typewriter Effect ذكي ومنظم ومحمي من التعليق
+  // أنميشن الـ Typewriter
   useEffect(() => {
     if (messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];
@@ -458,8 +507,6 @@ export default function Chat() {
 
     const fullText = lastMessage.text;
     let currentPos = 0;
-    
-    // تحديد سرعة القفزات بناءً على طول النص حتى لا تستغرق النصوص الطويلة وقتاً مملاً
     const step = Math.max(1, Math.ceil(fullText.length / 150));
 
     const timer = setInterval(() => {
@@ -502,8 +549,10 @@ export default function Chat() {
       if (res.ok) {
         const data = await res.json();
         setChats(data);
-        if (data.length > 0 && !activeChatId) {
-          setActiveChatId(data[0].id);
+        
+        // التحويل التلقائي لأول شات متوفر إذا كان المستخدم على المسار الرئيسي للدردشة
+        if (data.length > 0 && !chatid && window.location.pathname !== "/Chat/New") {
+          navigate(`/Chat/${data[0].id}`, { replace: true });
         }
       }
     } catch (err) {
@@ -511,11 +560,11 @@ export default function Chat() {
     }
   };
 
-  const fetchChatMessages = async (chatId) => {
+  const fetchChatMessages = async (id) => {
     try {
       const username = user?.username || user?.name;
       const res = await fetch(
-        `https://api.almaharat2.com/api/chats/${chatId}?username=${encodeURIComponent(username)}`
+        `https://api.almaharat2.com/api/chats/${id}?username=${encodeURIComponent(username)}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -532,27 +581,11 @@ export default function Chat() {
     }
   };
 
-  const handleCreateNewChat = async () => {
-    try {
-      const username = user?.username || user?.name;
-      const params = new URLSearchParams();
-      params.append("username", username);
-
-      const res = await fetch("https://api.almaharat2.com/api/chats/create", {
-        method: "POST",
-        body: params,
-      });
-      const data = await res.json();
-      if (data.success && data.chat_id) {
-        setActiveChatId(data.chat_id);
-        await fetchChats();
-      }
-    } catch (err) {
-      console.error("Error creating chat:", err);
-    }
+  const handleCreateNewChat = () => {
+    navigate("/Chat/New");
   };
 
-  const handleDeleteChat = async (e, chatId) => {
+  const handleDeleteChat = async (e, id) => {
     e.stopPropagation();
     if (!window.confirm("هل أنت متأكد من رغبتك في حذف هذه المحادثة؟")) return;
 
@@ -561,14 +594,14 @@ export default function Chat() {
       const params = new URLSearchParams();
       params.append("username", username);
 
-      const res = await fetch(`https://api.almaharat2.com/api/chats/${chatId}/delete`, {
+      const res = await fetch(`https://api.almaharat2.com/api/chats/${id}/delete`, {
         method: "POST",
         body: params,
       });
 
       if (res.ok) {
-        if (activeChatId === chatId) {
-          setActiveChatId(null);
+        if (chatid === id) {
+          navigate("/Chat/New");
         }
         await fetchChats();
       }
@@ -577,7 +610,7 @@ export default function Chat() {
     }
   };
 
-  const handleRenameChat = async (e, chatId, currentTitle) => {
+  const handleRenameChat = async (e, id, currentTitle) => {
     e.stopPropagation();
     const newTitle = window.prompt("أدخل العنوان الجديد للمحادثة:", currentTitle);
     if (!newTitle || !newTitle.trim()) return;
@@ -588,7 +621,7 @@ export default function Chat() {
       params.append("username", username);
       params.append("title", newTitle.trim());
 
-      const res = await fetch(`https://api.almaharat2.com/api/chats/${chatId}/rename`, {
+      const res = await fetch(`https://api.almaharat2.com/api/chats/${id}/rename`, {
         method: "POST",
         body: params,
       });
@@ -615,6 +648,7 @@ export default function Chat() {
     let targetChatId = activeChatId;
     const username = user?.username || user?.name;
 
+    // تهيئة شات جديد بالباك إند عند إرسال أول رسالة من مسار النيو شات
     if (!targetChatId) {
       try {
         const params = new URLSearchParams();
@@ -626,8 +660,9 @@ export default function Chat() {
         const createData = await createRes.json();
         if (createData.success && createData.chat_id) {
           targetChatId = createData.chat_id;
-          skipHistoryFetch.current = true; // تفعيل الحماية لعدم تصفير الشات الجاري كتابته
+          skipHistoryFetch.current = true; // منع الوميض والتصفير للرسالة المرسلة حالياً
           setActiveChatId(targetChatId);
+          navigate(`/Chat/${targetChatId}`, { replace: true });
         } else {
           pushAiMessage("❌ تعذر تهيئة محادثة جديدة تلقائياً", true);
           return;
@@ -681,20 +716,6 @@ export default function Chat() {
 
   if (!user) return null;
 
-  const markdownComponents = {
-    pre: ({ children }) => <>{children}</>,
-    code(props) {
-      const { className, children } = props;
-      const match = /language-(\w+)/.exec(className || "");
-      const codeText = String(children).replace(/\n$/, "");
-
-      if (!match) {
-        return <code className="inline-code">{children}</code>;
-      }
-      return <CodeBlock language={match[1]} code={codeText} />;
-    },
-  };
-
   return (
     <div dir="rtl" className="chat-page">
       <style>{styles}</style>
@@ -717,7 +738,7 @@ export default function Chat() {
               <div 
                 key={c.id} 
                 className={`chat-item ${activeChatId === c.id ? "active" : ""}`}
-                onClick={() => setActiveChatId(c.id)}
+                onClick={() => navigate(`/Chat/${c.id}`)}
               >
                 <span className="chat-item-title">{c.title || "شات جديد"}</span>
                 <div className="chat-item-actions">
@@ -770,7 +791,7 @@ export default function Chat() {
                   </span>
                 </div>
               </div>
-            )})
+            )}
 
             <div ref={bottomRef} />
           </div>

@@ -43,9 +43,7 @@ function OldDomainPage() {
     >
       <h1>404</h1>
       <p>هذا دومين قديم.</p>
-      <p>
-        يمكنك الدخول من خلال:
-      </p>
+      <p>يمكنك الدخول من خلال:</p>
 
       <a
         href="https://almaharat2.com"
@@ -103,12 +101,8 @@ function ServerChecker({ children }) {
 }
 
 export default function App() {
-
-  // اسم الدومين الحالي
   const hostname = window.location.hostname
-  const pagename = window.location.pathname
 
-  // إذا دخل من الدومين القديم
   if (hostname === "almaharat.ngrok.app") {
     return (
       <BrowserRouter>
@@ -119,7 +113,6 @@ export default function App() {
     )
   }
 
-  // الدومين الرسمي
   return (
     <BrowserRouter>
       <ServerChecker>
@@ -146,7 +139,12 @@ export default function App() {
           <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />
           <Route path="/Help" element={<Help />} />
           <Route path="/Help/Verify/requirements" element={<HelpVRR />} />
-          <Route path="/Chat" element={<Chat />} />
+          
+          {/* 🛠️ روابط الدردشة الجديدة متضمنة تحويل مسار تلقائي */}
+          <Route path="/Chat" element={<Navigate to="/Chat/New" replace />} />
+          <Route path="/Chat/New" element={<Chat />} />
+          <Route path="/Chat/:chatid" element={<Chat />} />
+          
           <Route path="/Profile" element={<Profile />} />
           <Route path="/:userid" element={<Profile />} />
           <Route path="/Privacy" element={<Privacy />} />
