@@ -5,15 +5,17 @@
  *   <Route path="/profile"    element={<Profile />} />   ← own profile
  *   <Route path="/:userid"    element={<Profile />} />   ← public profile
  *
- * ⚠️  Public profile fetching uses GET /api/users/public/:userid
- *     which doesn't exist in app.py yet — add it or adapt the fetch below.
+ * Requires backend route GET /api/users/public/:userid (see app.py fix).
  *
- * Fix: the original import `import App from './App.css'` is invalid
- * (CSS files have no default export). Use the plain import below instead.
+ * FIX: original code read the logged-in user from localStorage, but
+ * Login.jsx actually stores it in a cookie via js-cookie. That mismatch
+ * meant `stored` was always null and the page redirected straight back
+ * to /login. Now reads from the cookie instead.
  */
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import Cookies from "js-cookie";
 import "./App.css";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -26,12 +28,16 @@ const PALETTE = [
   "#06b6d4", "#0ea5e9", "#3b82f6", "#14b8a6",
 ];
 const userColor = (name = "") =>
-  PALETTE[name.charCodeAt(0) % PALETTE.length];
+  PALETTE[(name.charCodeAt(0) || 0) % PALETTE.length];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getStoredUser = () => {
-  try { return JSON.parse(localStorage.getItem("user") ?? "null"); }
-  catch { return null; }
+  try {
+    const raw = Cookies.get("user"); // ← Login.jsx writes here, not localStorage
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 };
 
 // ─── AnimatedStat ─────────────────────────────────────────────────────────────
@@ -179,12 +185,11 @@ export default function Profile() {
     setError(null);
 
     try {
-      // ── Own profile: read from localStorage ──
+      // ── Own profile: read from cookie ──
       if (isOwn && stored) {
         setUser(stored);
       } else {
         // ── Public profile: fetch from API ──
-        // ⚠️  Requires GET /api/users/public/:userid in app.py
         const r = await fetch(`${API}/api/users/public/${userId}`);
         if (!r.ok) throw new Error("المستخدم غير موجود");
         setUser(await r.json());

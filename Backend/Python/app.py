@@ -1388,6 +1388,14 @@ def rename_chat(chat_id):
 
     return jsonify({"success": True})
 
+@app.route("/api/users/public/<string:userid>", methods=["GET"])
+def get_public_user(userid):
+    users = read_json(DB_PATH)
+    user = next((u for u in users if u.get("userid") == userid), None)
+    if not user:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+    return jsonify(safe_user(user)), 200
+
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)
