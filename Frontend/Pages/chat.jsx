@@ -148,9 +148,10 @@ const styles = `
 `;
 
 // NOTE: removed "gemini-embedding-1/2", "imagen-4-fast", "imagen-4-ultra",
-// "veo-3-fast", "veo-3" — those are embedding / image-gen / video-gen models.
-// They don't support generate_content() text chat at all, so selecting any
-// of them guaranteed a 500 from /api/chat. Only conversational models stay.
+// "veo-3-fast", "veo-3" — those are embedding / image-gen / video-gen models,
+// they don't support generate_content() text chat at all.
+// Also removed "gemini-2-flash" / "gemini-2-flash-lite" — deprecated/being
+// shut down by Google in 2026, so they'll start failing even with a valid key.
 const MODELS = [
   "gemini-3.5-flash",
   "gemini-3-flash",
@@ -159,8 +160,6 @@ const MODELS = [
   "gemini-2.5-pro",
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-2-flash",
-  "gemini-2-flash-lite",
 ];
 
 const SUGGESTIONS = [
