@@ -146,9 +146,9 @@ def register():
         "followers": 0,
         "following": 0,
         "lessons":   0,
-        "friends":   "[]",  # FIX #10 — fixed typo "freinds" → "friends"
+        "friends":   [],  # FIX #10 — store as list, not string
         "is_banned": False,
-        "chats": "{}",
+        "chats": {},
     }
     accounts.append(new_user)
     write_json(DB_PATH, accounts)
@@ -1261,39 +1261,56 @@ def chat():
             "chat_id": chat_id
         }), 429 if is_quota_error else 500
     
-ACCOUNTS_FILE = Path("Backend/Python/Data/Accounts.json")
+ACCOUNTS_FILE = Path(DB_PATH)
 
 def load_accounts():
-    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """
+    Load accounts from the JSON file (which is stored as a list of user objects)
+    and return a dict keyed by username for easy lookup/updates by other
+    endpoints that expect a mapping.
+    """
+    users = read_json(DB_PATH)
+    accounts = {}
+    for u in users:
+        uname = u.get("username")
+        if uname:
+            accounts[uname] = u
+    return accounts
 
-def save_accounts(data):
-    with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+def save_accounts(accounts):
+    """
+    Accept a dict keyed by username and write it back to the JSON file as a
+    list (preserving the original on-disk format used elsewhere in the app).
+    """
+    users_list = list(accounts.values())
+    write_json(DB_PATH, users_list)
 
 @app.route("/api/chats/create", methods=["POST"])
 def create_chat():
+    try:
+        username = request.form.get("username")
+        accounts = load_accounts()
 
-    username = request.form.get("username")
+        if username not in accounts:
+            return jsonify({"error": "account not found"}), 404
 
-    accounts = load_accounts()
+        chat_id = str(uuid.uuid4())
 
-    if username not in accounts:
-        return jsonify({"error": "account not found"}), 404
+        if "chats" not in accounts[username]:
+            accounts[username]["chats"] = {}
 
-    chat_id = str(uuid.uuid4())
+        accounts[username]["chats"][chat_id] = {
+            "title": None,
+            "messages": []
+        }
 
-    accounts[username]["chats"][chat_id] = {
-        "title": None,
-        "messages": []
-    }
+        save_accounts(accounts)
+        return jsonify({"success": True, "chat_id": chat_id})
 
-    save_accounts(accounts)
-
-    return jsonify({
-        "success": True,
-        "chat_id": chat_id
-    })
+    except Exception as e:
+        # 🔥 هذا السطر سيطبع لك الخطأ الحقيقي والسطر المسبب له في كونسول البايثون
+        print("CRITICAL BACKEND ERROR IN CREATE_CHAT:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chats", methods=["POST"])
 def get_chats():

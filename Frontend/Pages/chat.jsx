@@ -776,7 +776,7 @@ export default function Chat() {
                   </span>
                 </div>
               </div>
-            )}
+            )})
 
             <div ref={bottomRef} />
           </div>
