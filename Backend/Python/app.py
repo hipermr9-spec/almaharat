@@ -148,7 +148,7 @@ def register():
         "lessons":   0,
         "friends":   "[]",  # FIX #10 — fixed typo "freinds" → "friends"
         "is_banned": False,
-        "chats": "[]",
+        "chats": "{}",
     }
     accounts.append(new_user)
     write_json(DB_PATH, accounts)

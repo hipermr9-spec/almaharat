@@ -6,7 +6,7 @@
         "points": 0,
         "role": "user",
         "verified": false,
-        "chats": []
+        "chats": {}
     },
     {
         "userid": 3,
@@ -15,7 +15,7 @@
         "points": 0,
         "role": "admin",
         "verified": true,
-        "chats": []
+        "chats": {}
     },
     {
         "userid": "1",
@@ -24,6 +24,6 @@
         "points": 5,
         "role": "admin",
         "verified": true,
-        "chats": []
+        "chats": {}
     }
 ]
