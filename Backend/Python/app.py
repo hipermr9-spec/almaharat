@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
+from pathlib import Path
 
 app = Flask(__name__)   # ← KILLS everything above it
 
@@ -1113,49 +1114,261 @@ def get_model(name):
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
+
     model_name = request.form.get("model", "gemini-2.5-flash")
+    username = request.form.get("username")
+    chat_id = request.form.get("chat_id")
 
     try:
+
         prompt = (request.form.get("prompt") or "").strip()
+
         if not prompt:
-            return jsonify({"error": "الرسالة فارغة", "limited": False}), 400
+            return jsonify({
+                "error": "الرسالة فارغة",
+                "limited": False
+            }), 400
 
         model = get_model(model_name)
+
         image_file = request.files.get("image")
 
         if not image_file:
+
             response = model.generate_content(prompt)
+
         else:
+
             image_bytes = image_file.read()
+
             image_part = {
                 "mime_type": image_file.content_type,
                 "data": base64.b64encode(image_bytes).decode("utf-8"),
             }
-            response = model.generate_content([prompt, image_part])
+
+            response = model.generate_content([
+                prompt,
+                image_part
+            ])
 
         try:
             text = response.text
         except Exception:
             text = "⚠️ لم يتمكن النموذج من إنشاء رد لهذه الرسالة."
 
-        return jsonify({"response": text, "limited": False}), 200
+        # ==========================
+        # حفظ الرسائل داخل الشات
+        # ==========================
+
+        try:
+
+            if username and chat_id:
+
+                accounts = load_accounts()
+
+                if (
+                    username in accounts and
+                    "chats" in accounts[username] and
+                    chat_id in accounts[username]["chats"]
+                ):
+
+                    chat = accounts[username]["chats"][chat_id]
+
+                    chat["messages"].append({
+                        "role": "user",
+                        "content": prompt
+                    })
+
+                    chat["messages"].append({
+                        "role": "assistant",
+                        "content": text
+                    })
+
+                    # إنشاء عنوان تلقائي أول مرة فقط
+
+                    if not chat.get("title"):
+
+                        try:
+
+                            title_response = model.generate_content(
+                                f"""
+                                أنشئ عنواناً قصيراً جداً
+                                من 2 إلى 5 كلمات فقط.
+
+                                الرسالة:
+
+                                {prompt}
+
+                                أرجع العنوان فقط.
+                                """
+                            )
+
+                            title = title_response.text.strip()
+
+                            if len(title) > 50:
+                                title = title[:50]
+
+                            chat["title"] = title
+
+                        except Exception:
+
+                            chat["title"] = prompt[:30]
+
+                    save_accounts(accounts)
+
+        except Exception as save_error:
+
+            print("CHAT SAVE ERROR:", save_error)
+
+        return jsonify({
+            "response": text,
+            "chat_id": chat_id,
+            "limited": False
+        }), 200
 
     except ResourceExhausted:
-        # Google's SDK raises this specifically for 429 / quota-exceeded.
+
         return jsonify({
             "error": f"تم الوصول للحد الأقصى المسموح لموديل {model_name}",
             "limited": True,
+            "chat_id": chat_id
         }), 429
 
     except Exception as e:
+
         msg = str(e)
-        is_quota_error = any(k in msg.lower() for k in ["quota", "rate limit", "429", "resource_exhausted"])
+
+        is_quota_error = any(
+            k in msg.lower()
+            for k in [
+                "quota",
+                "rate limit",
+                "429",
+                "resource_exhausted"
+            ]
+        )
+
         print("ERROR:", msg)
+
         return jsonify({
-            "error": (f"تم الوصول للحد الأقصى المسموح لموديل {model_name}"
-                      if is_quota_error else "حدث خطأ في الخادم، حاول مرة أخرى."),
-            "limited": True if is_quota_error else None,
+            "error":
+                f"تم الوصول للحد الأقصى المسموح لموديل {model_name}"
+                if is_quota_error
+                else "حدث خطأ في الخادم، حاول مرة أخرى.",
+            "limited":
+                True if is_quota_error else None,
+            "chat_id": chat_id
         }), 429 if is_quota_error else 500
+    
+ACCOUNTS_FILE = Path("Backend/Python/Data/Accounts.json")
+
+def load_accounts():
+    with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_accounts(data):
+    with open(ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+@app.route("/api/chats/create", methods=["POST"])
+def create_chat():
+
+    username = request.form.get("username")
+
+    accounts = load_accounts()
+
+    if username not in accounts:
+        return jsonify({"error": "account not found"}), 404
+
+    chat_id = str(uuid.uuid4())
+
+    accounts[username]["chats"][chat_id] = {
+        "title": None,
+        "messages": []
+    }
+
+    save_accounts(accounts)
+
+    return jsonify({
+        "success": True,
+        "chat_id": chat_id
+    })
+
+@app.route("/api/chats", methods=["POST"])
+def get_chats():
+
+    username = request.form.get("username")
+
+    accounts = load_accounts()
+
+    if username not in accounts:
+        return jsonify({"error": "account not found"}), 404
+
+    chats = []
+
+    for chat_id, chat in accounts[username]["chats"].items():
+        chats.append({
+            "id": chat_id,
+            "title": chat.get("title") or "شات جديد"
+        })
+
+    return jsonify(chats)
+
+@app.route("/api/chats/<chat_id>", methods=["GET"])
+def get_chat(chat_id):
+
+    username = request.args.get("username")
+
+    accounts = load_accounts()
+
+    if username not in accounts:
+        return jsonify({"error": "account not found"}), 404
+
+    chat = accounts[username]["chats"].get(chat_id)
+
+    if not chat:
+        return jsonify({"error": "chat not found"}), 404
+
+    return jsonify(chat)
+
+@app.route("/api/chats/<chat_id>/delete", methods=["POST"])
+def delete_chat(chat_id):
+
+    username = request.form.get("username")
+
+    accounts = load_accounts()
+
+    if username not in accounts:
+        return jsonify({"error": "account not found"}), 404
+
+    if chat_id in accounts[username]["chats"]:
+        del accounts[username]["chats"][chat_id]
+
+    save_accounts(accounts)
+
+    return jsonify({"success": True})
+
+@app.route("/api/chats/<chat_id>/rename", methods=["POST"])
+def rename_chat(chat_id):
+
+    username = request.form.get("username")
+    title = request.form.get("title", "").strip()
+
+    accounts = load_accounts()
+
+    if username not in accounts:
+        return jsonify({"error": "account not found"}), 404
+
+    chat = accounts[username]["chats"].get(chat_id)
+
+    if not chat:
+        return jsonify({"error": "chat not found"}), 404
+
+    chat["title"] = title
+
+    save_accounts(accounts)
+
+    return jsonify({"success": True})
 
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
