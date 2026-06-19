@@ -76,6 +76,11 @@ const styles = `
   background: linear-gradient(135deg,#3b82f6,#2563eb);
 }
 
+.message-bubble.error {
+  background: rgba(239,68,68,.15);
+  border: 1px solid rgba(239,68,68,.4);
+}
+
 /* INPUT */
 .chat-input-area {
   padding: 15px;
@@ -107,6 +112,12 @@ const styles = `
   cursor: pointer;
 }
 
+.chat-send-btn:disabled {
+  background: #1e3a8a;
+  cursor: not-allowed;
+  opacity: .6;
+}
+
 /* SELECT */
 .model-select {
   margin-bottom: 10px;
@@ -136,6 +147,10 @@ const styles = `
 }
 `;
 
+// NOTE: removed "gemini-embedding-1/2", "imagen-4-fast", "imagen-4-ultra",
+// "veo-3-fast", "veo-3" — those are embedding / image-gen / video-gen models.
+// They don't support generate_content() text chat at all, so selecting any
+// of them guaranteed a 500 from /api/chat. Only conversational models stay.
 const MODELS = [
   "gemini-3.5-flash",
   "gemini-3-flash",
@@ -146,12 +161,6 @@ const MODELS = [
   "gemini-2.5-flash-lite",
   "gemini-2-flash",
   "gemini-2-flash-lite",
-  "gemini-embedding-1",
-  "gemini-embedding-2",
-  "imagen-4-fast",
-  "imagen-4-ultra",
-  "veo-3-fast",
-  "veo-3",
 ];
 
 const SUGGESTIONS = [
@@ -166,14 +175,24 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [model, setModel] = useState("gemini-3.5-flash");
+  const [model, setModel] = useState(MODELS[0]);
 
   const bottomRef = useRef(null);
 
   useEffect(() => {
     const session = Cookies.get("user");
-    if (!session) return (window.location.href = "/login");
-    setUser(JSON.parse(session));
+    if (!session) {
+      window.location.href = "/login";
+      return;
+    }
+    // FIX: a malformed/stale cookie used to throw inside JSON.parse with
+    // nothing catching it, which can crash the whole component on mount.
+    try {
+      setUser(JSON.parse(session));
+    } catch {
+      Cookies.remove("user");
+      window.location.href = "/login";
+    }
   }, []);
 
   useEffect(() => {
@@ -181,33 +200,47 @@ export default function Chat() {
   }, [messages, loading]);
 
   const sendMessage = async (text) => {
-    const prompt = (text || input).trim();
+    const prompt = (text ?? input).trim();
     if (!prompt || loading) return;
 
     setInput("");
-
     setMessages((p) => [...p, { role: "user", text: prompt }]);
     setLoading(true);
 
     try {
       const res = await fetch("https://api.almaharat2.com/api/chat", {
         method: "POST",
-        body: new URLSearchParams({
-          prompt,
-          model,
-        }),
+        body: new URLSearchParams({ prompt, model }),
       });
 
-      const data = await res.json();
+      // FIX: server can return a non-JSON body on some failures (proxy
+      // errors, etc). Don't let that throw past the real error handling.
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
 
-      setMessages((p) => [
-        ...p,
-        { role: "ai", text: data.response || "No response" },
-      ]);
+      if (!res.ok) {
+        setMessages((p) => [
+          ...p,
+          {
+            role: "ai",
+            isError: true,
+            text: `❌ ${data.error || `خطأ في الخادم (${res.status})`}`,
+          },
+        ]);
+      } else {
+        setMessages((p) => [
+          ...p,
+          { role: "ai", text: data.response || "لم يصل رد من الخادم" },
+        ]);
+      }
     } catch {
       setMessages((p) => [
         ...p,
-        { role: "ai", text: "❌ Server error" },
+        { role: "ai", isError: true, text: "❌ تعذر الاتصال بالخادم" },
       ]);
     }
 
@@ -222,7 +255,7 @@ export default function Chat() {
 
       {/* NAVBAR */}
       <div className="chat-nav">
-        <div className="chat-nav-brand">📘 منصة الذكاء</div>
+        <div className="chat-nav-brand">منصة تعزيز المهارات ✨</div>
       </div>
 
       <div className="chat-wrapper">
@@ -231,9 +264,9 @@ export default function Chat() {
         <div className="chat-messages">
           {messages.map((m, i) => (
             <div key={i} className={`message-row ${m.role}`}>
-              <div className="message-bubble">
+              <div className={`message-bubble ${m.isError ? "error" : ""}`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {m.text}
+                  {m.text ?? ""}
                 </ReactMarkdown>
               </div>
             </div>
@@ -276,9 +309,19 @@ export default function Chat() {
               value={input}
               placeholder="اكتب رسالتك..."
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
             />
 
-            <button className="chat-send-btn" onClick={() => sendMessage()}>
+            <button
+              className="chat-send-btn"
+              onClick={() => sendMessage()}
+              disabled={loading || !input.trim()}
+            >
               ➤
             </button>
           </div>

@@ -1093,45 +1093,58 @@ load_dotenv()
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
+# Compatible chat models only — embedding / image-gen / video-gen models
+# don't support generate_content() and will always raise an error here.
+CHAT_COMPATIBLE_MODELS = {
+    "gemini-3.5-flash", "gemini-3-flash", "gemini-3.1-pro", "gemini-3.1-flash-lite",
+    "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
+    "gemini-2-flash", "gemini-2-flash-lite",
+}
+
 def get_model(name):
+    if name not in CHAT_COMPATIBLE_MODELS:
+        name = "gemini-2.5-flash"
     try:
         return genai.GenerativeModel(name)
-    except:
-        return genai.GenerativeModel("gemini-1.5-flash")
+    except Exception:
+        return genai.GenerativeModel("gemini-2.5-flash")
 
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
     try:
-        prompt = request.form.get("prompt", "")
-        model_name = request.form.get("model", "gemini-1.5-flash")
+        prompt = (request.form.get("prompt") or "").strip()
+        model_name = request.form.get("model", "gemini-2.5-flash")
+
+        if not prompt:
+            return jsonify({"error": "الرسالة فارغة"}), 400
 
         model = get_model(model_name)
-
         image_file = request.files.get("image")
 
-        # TEXT ONLY
         if not image_file:
             response = model.generate_content(prompt)
-            return jsonify({"response": response.text})
+        else:
+            image_bytes = image_file.read()
+            image_part = {
+                "mime_type": image_file.content_type,
+                "data": base64.b64encode(image_bytes).decode("utf-8"),
+            }
+            response = model.generate_content([prompt, image_part])
 
-        # IMAGE + TEXT
-        image_bytes = image_file.read()
+        # response.text raises if the model returned no usable candidate
+        # (e.g. blocked by safety filters) — catch that instead of letting
+        # it fall through to a bare 500.
+        try:
+            text = response.text
+        except Exception:
+            text = "⚠️ لم يتمكن النموذج من إنشاء رد لهذه الرسالة."
 
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-
-        image_part = {
-            "mime_type": image_file.content_type,
-            "data": image_base64
-        }
-
-        response = model.generate_content([prompt, image_part])
-
-        return jsonify({"response": response.text})
+        return jsonify({"response": text}), 200
 
     except Exception as e:
         print("ERROR:", str(e))
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "حدث خطأ في الخادم، حاول مرة أخرى."}), 500
 
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
