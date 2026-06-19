@@ -1095,6 +1095,8 @@ genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 # Compatible chat models only — embedding / image-gen / video-gen models
 # don't support generate_content() and will always raise an error here.
+from google.api_core.exceptions import ResourceExhausted
+
 CHAT_COMPATIBLE_MODELS = {
     "gemini-3.5-flash", "gemini-3-flash", "gemini-3.1-pro", "gemini-3.1-flash-lite",
     "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
@@ -1111,12 +1113,12 @@ def get_model(name):
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    model_name = request.form.get("model", "gemini-2.5-flash")
+
     try:
         prompt = (request.form.get("prompt") or "").strip()
-        model_name = request.form.get("model", "gemini-2.5-flash")
-
         if not prompt:
-            return jsonify({"error": "الرسالة فارغة"}), 400
+            return jsonify({"error": "الرسالة فارغة", "limited": False}), 400
 
         model = get_model(model_name)
         image_file = request.files.get("image")
@@ -1131,19 +1133,29 @@ def chat():
             }
             response = model.generate_content([prompt, image_part])
 
-        # response.text raises if the model returned no usable candidate
-        # (e.g. blocked by safety filters) — catch that instead of letting
-        # it fall through to a bare 500.
         try:
             text = response.text
         except Exception:
             text = "⚠️ لم يتمكن النموذج من إنشاء رد لهذه الرسالة."
 
-        return jsonify({"response": text}), 200
+        return jsonify({"response": text, "limited": False}), 200
+
+    except ResourceExhausted:
+        # Google's SDK raises this specifically for 429 / quota-exceeded.
+        return jsonify({
+            "error": f"تم الوصول للحد الأقصى المسموح لموديل {model_name}",
+            "limited": True,
+        }), 429
 
     except Exception as e:
-        print("ERROR:", str(e))
-        return jsonify({"error": "حدث خطأ في الخادم، حاول مرة أخرى."}), 500
+        msg = str(e)
+        is_quota_error = any(k in msg.lower() for k in ["quota", "rate limit", "429", "resource_exhausted"])
+        print("ERROR:", msg)
+        return jsonify({
+            "error": (f"تم الوصول للحد الأقصى المسموح لموديل {model_name}"
+                      if is_quota_error else "حدث خطأ في الخادم، حاول مرة أخرى."),
+            "limited": True if is_quota_error else None,
+        }), 429 if is_quota_error else 500
 
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
