@@ -180,30 +180,41 @@ export default function Profile() {
   const [selected, setSelected] = useState(null);
 
   const fetchData = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      // Previously this just returned, leaving `loading` stuck at its
+      // initial `true` value forever — silent infinite spinner.
+      setError("تعذر العثور على معرف المستخدم. الرجاء تسجيل الدخول مرة أخرى.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
+    // ── User data (own profile from cookie, public profile from API) ──
     try {
-      // ── Own profile: read from cookie ──
       if (isOwn && stored) {
         setUser(stored);
       } else {
-        // ── Public profile: fetch from API ──
         const r = await fetch(`${API}/api/users/public/${userId}`);
         if (!r.ok) throw new Error("المستخدم غير موجود");
         setUser(await r.json());
       }
-
-      // ── Posts (both modes) ──
-      const pr = await fetch(`${API}/api/posts/user/${userId}`);
-      if (pr.ok) setPosts(await pr.json());
-
     } catch (e) {
       setError(e.message);
-    } finally {
       setLoading(false);
+      return; // no user → nothing else to fetch
     }
+
+    // ── Posts — separate try/catch so a failure here doesn't blank the profile ──
+    try {
+      const pr = await fetch(`${API}/api/posts/user/${userId}`);
+      if (pr.ok) setPosts(await pr.json());
+    } catch (e) {
+      console.error("Failed to load posts:", e);
+      // intentionally not setting `error` — show the profile, just without posts
+    }
+
+    setLoading(false);
   }, [userId, isOwn]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
