@@ -10,32 +10,32 @@ export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(`${BASE}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const userData = data.user;  // ← get user from inside response
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const res = await fetch(`${BASE}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const { chats, ...userData } = data.user; // ignore chats, keep the rest
 
-        Cookies.set("user", JSON.stringify(userData));  // ✅ stringify it
-        Cookies.set("userid", userData.userid);         // ✅ correct field
+      Cookies.set("user", JSON.stringify(userData));
+      Cookies.set("userid", userData.userid);
 
-        window.location.href = "/home";
-      } else {
-        alert("⚠️ " + data.error);
-      }
-    } catch {
-      alert("❌ تعذر الاتصال بالمنصة!");
-    } finally {
-      setLoading(false);
+      window.location.href = "/home";
+    } else {
+      alert("⚠️ " + data.error);
     }
-  };
+  } catch {
+    alert("❌ تعذر الاتصال بالمنصة!");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="auth-page">
