@@ -400,49 +400,6 @@ const SUGGESTIONS = [
   "ما هو التكامل؟ 🔢"
 ];
 
-const TYPE_STEP_DIVISOR = 250;
-const TYPE_INTERVAL_MS = 14;
-
-function CodeBlock({ language, code }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // clip-board error fallback
-    }
-  };
-
-  return (
-    <div className="code-block" dir="ltr">
-      <div className="code-block-header">
-        <span>{language}</span>
-        <button className="code-block-copy" onClick={handleCopy}>
-          {copied ? "✅ Copied" : "Copy"}
-        </button>
-      </div>
-      <pre className="code-block-pre"><code>{code}</code></pre>
-    </div>
-  );
-}
-
-const markdownComponents = {
-  pre: ({ children }) => <>{children}</>,
-  code(props) {
-    const { className, children } = props;
-    const match = /language-(\w+)/.exec(className || "");
-    const codeText = String(children).replace(/\n$/, "");
-
-    if (!match) {
-      return <code className="inline-code">{children}</code>;
-    }
-    return <CodeBlock language={match[1]} code={codeText} />;
-  },
-};
-
 export default function Chat() {
   const [user, setUser] = useState(null);
   const [chats, setChats] = useState([]);
@@ -453,6 +410,7 @@ export default function Chat() {
   const [model, setModel] = useState(MODELS[0]);
 
   const bottomRef = useRef(null);
+  const skipHistoryFetch = useRef(false); // حماية لمنع سباق البيانات ومسح الشات الجديد فجأة
 
   useEffect(() => {
     const session = Cookies.get("user");
@@ -479,6 +437,11 @@ export default function Chat() {
       setMessages([]);
       return;
     }
+    // إذا تم تشغيل حماية الشات الجديد، تخطى الجلب حتى لا يمسح الرسائل الحالية
+    if (skipHistoryFetch.current) {
+      skipHistoryFetch.current = false;
+      return;
+    }
     fetchChatMessages(activeChatId);
   }, [activeChatId, user]);
 
@@ -486,28 +449,44 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // 🛠️ أنميشن محاكي ومطور للـ Typewriter Effect ذكي ومنظم ومحمي من التعليق
   useEffect(() => {
-    const idx = messages.length - 1;
-    const last = messages[idx];
-    if (!last || last.role !== "ai" || last.done) return;
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
 
-    const step = Math.max(1, Math.ceil(last.text.length / TYPE_STEP_DIVISOR));
+    if (lastMessage.role !== "ai" || lastMessage.done || lastMessage.displayed.length > 0) return;
 
-    const interval = setInterval(() => {
+    const fullText = lastMessage.text;
+    let currentPos = 0;
+    
+    // تحديد سرعة القفزات بناءً على طول النص حتى لا تستغرق النصوص الطويلة وقتاً مملاً
+    const step = Math.max(1, Math.ceil(fullText.length / 150));
+
+    const timer = setInterval(() => {
+      currentPos += step;
+      const isFinished = currentPos >= fullText.length;
+
       setMessages((prev) => {
-        const i = prev.length - 1;
-        const msg = prev[i];
-        if (!msg || msg.role !== "ai" || msg.done) return prev;
+        if (prev.length === 0) return prev;
+        const updated = [...prev];
+        const target = updated[updated.length - 1];
 
-        const nextLen = Math.min(msg.text.length, msg.displayed.length + step);
-        const done = nextLen >= msg.text.length;
-        const next = [...prev];
-        next[i] = { ...msg, displayed: msg.text.slice(0, nextLen), done };
-        return next;
+        if (target && target.role === "ai" && !target.done) {
+          updated[updated.length - 1] = {
+            ...target,
+            displayed: fullText.slice(0, Math.min(currentPos, fullText.length)),
+            done: isFinished,
+          };
+        }
+        return updated;
       });
-    }, TYPE_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+      if (isFinished) {
+        clearInterval(timer);
+      }
+    }, 12);
+
+    return () => clearInterval(timer);
   }, [messages.length]);
 
   const fetchChats = async () => {
@@ -647,6 +626,7 @@ export default function Chat() {
         const createData = await createRes.json();
         if (createData.success && createData.chat_id) {
           targetChatId = createData.chat_id;
+          skipHistoryFetch.current = true; // تفعيل الحماية لعدم تصفير الشات الجاري كتابته
           setActiveChatId(targetChatId);
         } else {
           pushAiMessage("❌ تعذر تهيئة محادثة جديدة تلقائياً", true);
@@ -700,6 +680,20 @@ export default function Chat() {
   };
 
   if (!user) return null;
+
+  const markdownComponents = {
+    pre: ({ children }) => <>{children}</>,
+    code(props) {
+      const { className, children } = props;
+      const match = /language-(\w+)/.exec(className || "");
+      const codeText = String(children).replace(/\n$/, "");
+
+      if (!match) {
+        return <code className="inline-code">{children}</code>;
+      }
+      return <CodeBlock language={match[1]} code={codeText} />;
+    },
+  };
 
   return (
     <div dir="rtl" className="chat-page">
