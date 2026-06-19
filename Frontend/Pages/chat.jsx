@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import Cookies from "js-cookie";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 const styles = `
 .chat-page {
@@ -164,6 +167,21 @@ const styles = `
   font-size: 13px;
   line-height: 1.6;
   color: #e2e8f0;
+}
+
+/* MATH (KaTeX) */
+.katex {
+  color: #f8fafc;
+  direction: ltr;
+  unicode-bidi: embed;
+  font-size: 1.05em;
+}
+
+.katex-display {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  direction: ltr;
 }
 
 /* INPUT */
@@ -423,7 +441,11 @@ export default function Chat() {
           {messages.map((m, i) => (
             <div key={i} className={`message-row ${m.role}`}>
               <div className={`message-bubble ${m.isError ? "error" : ""}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+                  components={markdownComponents}
+                >
                   {m.displayed}
                 </ReactMarkdown>
                 {m.role === "ai" && !m.done && <span className="type-cursor" />}
