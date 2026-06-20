@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
 // استيراد صفحاتك
@@ -7,6 +7,7 @@ import Idont from './Pages/HomePage'
 import Login from './Pages/login'
 import Register from './Pages/rigi'
 import AdminHome from './Pages/Admin/admin_home'
+import OwnerHome from './Pages/Website/owner_home'
 import Games from './Pages/Games'
 import Settings from './Pages/Settings'
 import EnrichmentPage from './Pages/enrichmentPage'
@@ -100,6 +101,44 @@ function ServerChecker({ children }) {
   return children
 }
 
+function PageBlocker({ children }) {
+  const location = useLocation();
+  const [status, setStatus] = useState(null);
+  const API_BASE_URL = "https://api.almaharat2.com";
+
+  useEffect(() => {
+    let active = true;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/pages/check?path=${encodeURIComponent(location.pathname)}`);
+        if (!active) return;
+        if (res.status === 426) {
+          const d = await res.json();
+          setStatus(d.type || 'blocked');
+        } else {
+          setStatus(null);
+        }
+      } catch (e) {
+        setStatus(null);
+      }
+    };
+    check();
+    return () => { active = false; };
+  }, [location.pathname]);
+
+  if (status === 'in_working') {
+    return (
+      <div className="page-status-frame">الصفحة قيد العمل</div>
+    );
+  }
+  if (status === 'blocked') {
+    return (
+      <div className="page-status-frame">الصفحة محظورة</div>
+    );
+  }
+  return children;
+}
+
 export default function App() {
   const hostname = window.location.hostname
 
@@ -116,12 +155,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <ServerChecker>
-        <Routes>
+        <PageBlocker>
+          <Routes>
           <Route path="/Home" element={<Idont />} />
           <Route path="/" element={<Home />} />
           <Route path="/Login" element={<Login />} />
           <Route path="/Register" element={<Register />} />
           <Route path="/Admin/Home" element={<AdminHome />} />
+          <Route path="/Owner/Home" element={<OwnerHome />} />
           <Route path="/Games" element={<Games />} />
           <Route path="/Settings" element={<Settings />} />
           <Route path="/Server-Down" element={<ServerDown />} />
@@ -149,7 +190,8 @@ export default function App() {
           <Route path="/:userid" element={<Profile />} />
           <Route path="/Privacy" element={<Privacy />} />
           <Route path="*" element={<Error404 />} />
-        </Routes>
+          </Routes>
+        </PageBlocker>
       </ServerChecker>
     </BrowserRouter>
   )

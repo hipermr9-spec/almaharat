@@ -51,6 +51,9 @@ DB_PATH               = os.path.join(DATA_DIR, 'Accounts.json')
 EMAILS_PATH           = os.path.join(DATA_DIR, 'emails.json')
 PASSWORD_RESET_CODES  = os.path.join(DATA_DIR, 'password_reset_codes.json')
 PASSWORD_RESET_TOKENS = os.path.join(DATA_DIR, 'password_reset_tokens.json')
+IN_WORKING_PAGES_PATH = os.path.join(DATA_DIR, 'In_WorkingPages.json')
+BLOCKED_PAGES_PATH    = os.path.join(DATA_DIR, 'BlockedPages.json')
+ONLINE_PATH           = os.path.join(DATA_DIR, 'online.json')
 
 SENDER_EMAIL    = "hipermr9@gmail.com"
 SENDER_PASSWORD = "fguj cmet zxgq fllm"
@@ -94,7 +97,7 @@ def safe_user(user):
     return {k: v for k, v in user.items() if k != 'password'}
 
 # Initialise files that must always exist
-for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS]:
+for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH]:
     if not os.path.exists(_p):
         write_json(_p, [])
 
@@ -107,6 +110,16 @@ def require_admin(f):
         token       = request.headers.get('X-Admin-Token', '')
         admin_token = os.environ.get('ADMIN_TOKEN', 'changeme')
         if token != admin_token:
+            return jsonify({"error": "Unauthorized"}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+def require_owner(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token       = request.headers.get('X-Owner-Token', '')
+        owner_token = os.environ.get('OWNER_TOKEN', 'OWNER_TOKEN_2026')
+        if token != owner_token:
             return jsonify({"error": "Unauthorized"}), 403
         return f(*args, **kwargs)
     return decorated
@@ -178,6 +191,10 @@ def login():
     if check_password_hash(user['password'], password):
         session["userid"] = user["userid"]
         session["DONT-SHARE-THAT-COOKIE"] = user
+        try:
+            update_online(user["userid"], user.get("username", ""))
+        except Exception:
+            pass
         return jsonify({"user": safe_user(user)}), 200
 
     return jsonify({"error": "Invalid username or password"}), 401
@@ -717,6 +734,117 @@ def delete_post(post_id):
         return jsonify({"message": "Post deleted"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# =========================
+# 📄 Page logging (In-Working / Blocked) and online tracking
+# =========================
+def update_online(userid, username=''):
+    try:
+        entries = read_json(ONLINE_PATH)
+        now = datetime.now(timezone.utc).isoformat()
+        for e in entries:
+            if e.get('userid') == userid:
+                e['lastSeen'] = now
+                e['username'] = username
+                break
+        else:
+            entries.append({'userid': userid, 'username': username, 'lastSeen': now})
+        write_json(ONLINE_PATH, entries)
+    except Exception as e:
+        print("update_online error:", e)
+
+
+@app.route('/api/pages/check', methods=['GET'])
+def api_check_page():
+    path = (request.args.get('path') or '').strip()
+    if not path:
+        return jsonify({"error": "path required"}), 400
+    in_working = read_json(IN_WORKING_PAGES_PATH)
+    for e in in_working:
+        p = e.get('path', '')
+        if p == path or p in path or path in p:
+            return jsonify({"type": "in_working", "entry": e}), 426
+    blocked = read_json(BLOCKED_PAGES_PATH)
+    for e in blocked:
+        p = e.get('path', '')
+        if p == path or p in path or path in p:
+            return jsonify({"type": "blocked", "entry": e}), 426
+    return jsonify({"type": "ok"}), 200
+
+
+@app.route('/api/owner/pages/list', methods=['GET'])
+@require_owner
+def api_list_pages():
+    t = (request.args.get('type') or 'all').strip()
+    if t == 'in_working':
+        return jsonify(read_json(IN_WORKING_PAGES_PATH)), 200
+    if t == 'blocked':
+        return jsonify(read_json(BLOCKED_PAGES_PATH)), 200
+    return jsonify({
+        "in_working": read_json(IN_WORKING_PAGES_PATH),
+        "blocked": read_json(BLOCKED_PAGES_PATH)
+    }), 200
+
+
+@app.route('/api/owner/pages/add', methods=['POST'])
+@require_owner
+def api_add_page():
+    data = request.get_json() or {}
+    ppath = (data.get('path') or '').strip()
+    ptype = (data.get('type') or 'in_working').strip()
+    title = (data.get('title') or '').strip()
+    if not ppath:
+        return jsonify({"error": "path required"}), 400
+    if ptype not in ('in_working', 'blocked'):
+        return jsonify({"error": "invalid type"}), 400
+    entry = {"id": str(uuid.uuid4()), "path": ppath, "title": title, "createdAt": datetime.now(timezone.utc).isoformat()}
+    arr_path = IN_WORKING_PAGES_PATH if ptype == 'in_working' else BLOCKED_PAGES_PATH
+    arr = read_json(arr_path)
+    arr.append(entry)
+    write_json(arr_path, arr)
+    return jsonify({"message": "added", "entry": entry}), 201
+
+
+@app.route('/api/owner/pages/delete/<string:ptype>/<string:entry_id>', methods=['DELETE'])
+@require_owner
+def api_delete_page(ptype, entry_id):
+    if ptype not in ('in_working', 'blocked'):
+        return jsonify({"error": "invalid type"}), 400
+    arr_path = IN_WORKING_PAGES_PATH if ptype == 'in_working' else BLOCKED_PAGES_PATH
+    arr = read_json(arr_path)
+    new_arr = [e for e in arr if e.get('id') != entry_id]
+    if len(new_arr) == len(arr):
+        return jsonify({"error": "not found"}), 404
+    write_json(arr_path, new_arr)
+    return jsonify({"message": "deleted"}), 200
+
+
+@app.route('/api/online_count', methods=['GET'])
+def api_online_count():
+    entries = read_json(ONLINE_PATH)
+    now = datetime.now(timezone.utc)
+    valid = []
+    for e in entries:
+        try:
+            last = datetime.fromisoformat(e.get('lastSeen'))
+            if (now - last).total_seconds() <= 10 * 60:
+                valid.append(e)
+        except Exception:
+            pass
+    # optionally cleanup stale entries
+    write_json(ONLINE_PATH, valid)
+    return jsonify({"count": len(valid)}), 200
+
+
+@app.route('/api/online/ping', methods=['POST'])
+def api_online_ping():
+    data = request.get_json() or {}
+    userid = data.get('userid')
+    username = data.get('username', '')
+    if not userid:
+        return jsonify({"error": "userid required"}), 400
+    update_online(userid, username)
+    return jsonify({"success": True}), 200
 
 # =========================
 # 🔑 Password reset

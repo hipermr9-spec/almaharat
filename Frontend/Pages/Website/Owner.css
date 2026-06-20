@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/Rubik?family=Tajawal:wght@400;700;900&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+.body {
+    color: rgb(255, 255, 255);
+    width: 1920px;
+    height: 1080px;
+}
+
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 60px;
+  background: rgba(10,10,15,0.7);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: all 0.3s;
+}
+
+.navbar.scrolled { padding: 14px 60px; background: rgba(10,10,15,0.95); }
+
+.nav-logo {
+  font-size: 1.4rem; font-weight: 900;
+  background: linear-gradient(135deg, #818cf8, #06b6d4);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav-buttons { display: flex; gap: 12px; }
+
+/* ========================================= */
+/* 🍔 Burger Menu + Responsive               */
+/* ========================================= */
+
+.burger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 999;
+}
+
+.burger-btn span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: #e6edf3;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.burger-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.burger-btn.open span:nth-child(2) { opacity: 0; }
+.burger-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 200;
+  backdrop-filter: blur(4px);
+}
+
+.nav-overlay.active { display: block; }
+
+@media (max-width: 1024px) {
+  .burger-btn { display: flex; }
+
+  .main-nav {
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 300;
+  }
+
+  .main-nav.open { transform: translateX(0); }
+
+  .home-content {
+    margin-right: 0 !important;
+    width: 100% !important;
+    padding: 80px 20px 40px !important;
+  }
+
+  .about {
+    grid-template-columns: 1fr;
+    padding: 60px 20px;
+    gap: 40px;
+  }
+
+  .features { padding: 60px 20px; }
+
+  .stats { gap: 30px; flex-wrap: wrap; padding: 40px 20px; }
+
+  .cta-section { margin: 20px; padding: 50px 20px; }
+
+  .dashboard-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+
+  .exams-dashboard { padding: 20px; margin-top: 60px; }
+
+  .navbar { padding: 16px 20px !important; }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 2rem; }
+  .section-title { font-size: 1.8rem; }
+  .hero-cta { flex-direction: column; align-items: center; }
+  .exam-page-container { margin: 60px 12px; padding: 24px 16px; }
+  .exam-title { font-size: 1.6rem; }
+  .options-grid { grid-template-columns: 1fr; }
+  .assignments-grid { grid-template-columns: 1fr; padding: 10px; }
+  .exams-grid { grid-template-columns: 1fr; }
+  .welcome-box h1 { font-size: 1.4rem; }
+}
+
+.hero-title {
+    font: bold;
+    color: rgb(255, 255, 255);
+    stroke: black;
+    stroke-width: 12px;
+    font-size: 28px;
+}
+
+.section-title {
+    font: bold;
+    color: rgb(168, 168, 168);
+    stroke: black;
+    stroke-width: 12px;
+    font-size: 21px;
+}
+
+.text p {
+    color: rgb(255, 255, 255);
+    stroke: black;
+    stroke-width: 12px;
+    font-size: 18px;
+}
+
+.text {
+    color: rgb(255, 255, 255);
+    stroke: black;
+    stroke-width: 12px;
+    font-size: 20px;
+}

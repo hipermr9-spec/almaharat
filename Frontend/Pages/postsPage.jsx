@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
+import BlockedPosts from './Website/BlockedPosts';
 
 const API = "https://api.almaharat2.com";
 
@@ -353,11 +354,14 @@ export default function PostPage() {
       }}>
         <div style={{ maxWidth:660, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
-            <h1 style={{
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <h1 style={{
               margin:0, fontSize:24, fontWeight:900, color:'#f1f5f9',
               background:'linear-gradient(135deg, #818cf8, #c084fc)',
               WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'
-            }}>المنشورات</h1>
+              }}>المنشورات</h1>
+              <BlockedPosts />
+            </div>
             {user && (
               <button onClick={() => navigate('/Posts/Add')} style={{
                 background:'linear-gradient(135deg, #6366f1, #8b5cf6)',
