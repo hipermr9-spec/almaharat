@@ -28,6 +28,10 @@ import HelpVRR from './Pages/verifiyrequirments'
 import Chat from './Pages/chat'
 import Profile from './Pages/Profile'
 import Privacy from './Pages/privacy'
+import Ownerhomepage from './Pages/Website/owner_home'
+import BlockedPages from './Pages/Website/BlockedPages'
+import InWorkingPages from './Pages/Website/In_WorkingPages'
+import BlockedPosts from './Pages/Website/BlockedPosts'
 
 function OldDomainPage() {
   return (
@@ -189,6 +193,10 @@ export default function App() {
           <Route path="/Profile" element={<Profile />} />
           <Route path="/:userid" element={<Profile />} />
           <Route path="/Privacy" element={<Privacy />} />
+          <Route path="/Owner/" element={<Ownerhomepage />} />
+          <Route path="/Owner/Blocked/Pages" element={<BlockedPages />} />
+          <Route path="/Owner/Working/Pages" element={<InWorkingPages />} />
+          <Route path="/Owner/Blocked/Posts" element={<BlockedPosts />} />
           <Route path="*" element={<Error404 />} />
           </Routes>
         </PageBlocker>
