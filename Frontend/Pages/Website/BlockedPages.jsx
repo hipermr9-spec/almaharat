@@ -4,12 +4,19 @@ const API = "https://api.almaharat2.com";
 
 export default function BlockedPages({ onDeleted }) {
   const [pages, setPages] = useState([]);
+  const ownerToken = localStorage.getItem('OWNER_TOKEN') || '';
 
-  useEffect(() => { fetchList(); }, []);
+  useEffect(() => {
+    fetchList();
+    const handler = () => fetchList();
+    window.addEventListener('pages-updated', handler);
+    return () => window.removeEventListener('pages-updated', handler);
+  }, []);
 
   async function fetchList() {
     try {
-      const res = await fetch(`${API}/api/pages/list?type=blocked`);
+      const res = await fetch(`${API}/api/owner/pages/list?type=blocked`, { headers: { 'X-Owner-Token': ownerToken }, credentials: 'include' });
+      if (!res.ok) { setPages([]); return; }
       const d = await res.json();
       setPages(Array.isArray(d) ? d : []);
     } catch (e) {
@@ -19,8 +26,9 @@ export default function BlockedPages({ onDeleted }) {
 
   async function handleDelete(id) {
     if (!window.confirm('هل تريد حذف الصفحة من المحظورة؟')) return;
-    await fetch(`${API}/api/pages/delete/blocked/${id}`, { method: 'DELETE' });
+    await fetch(`${API}/api/owner/pages/delete/blocked/${id}`, { method: 'DELETE', headers: { 'X-Owner-Token': ownerToken }, credentials: 'include' });
     fetchList();
+    window.dispatchEvent(new Event('pages-updated'));
     if (onDeleted) onDeleted();
   }
 

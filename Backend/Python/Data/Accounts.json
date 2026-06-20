@@ -22,7 +22,7 @@
         "username": "Rakan",
         "password": "scrypt:32768:8:1$FemdnuhB6KGXAztu$7eb0264544025ef64c0e9a6a58951e82f750bd2fecc8029484d8ca9049fabed9643a678145bdb7eabffb2e051bc6dd100517474f8405b20b3021267b5716bd53",
         "points": 5,
-        "role": "admin",
+        "role": "owner",
         "verified": true,
         "chats": {}
     }

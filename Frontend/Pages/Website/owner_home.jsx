@@ -26,12 +26,14 @@ export default function OwnerHome() {
     e.preventDefault();
     if (!path.trim()) return alert('الرجاء إدخال مسار الصفحة');
     try {
-      await fetch(`${API}/api/pages/add`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: path.trim(), title: title.trim(), type })
+      const ownerToken = localStorage.getItem('OWNER_TOKEN') || '';
+      await fetch(`${API}/api/owner/pages/add`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Owner-Token': ownerToken },
+        body: JSON.stringify({ path: path.trim(), title: title.trim(), type }),
+        credentials: 'include'
       });
       setPath(''); setTitle('');
-      // reload handled in child components
+      window.dispatchEvent(new Event('pages-updated'));
     } catch (err) {
       console.error(err);
     }

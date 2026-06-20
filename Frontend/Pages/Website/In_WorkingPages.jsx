@@ -4,12 +4,22 @@ const API = "https://api.almaharat2.com";
 
 export default function InWorkingPages({ onDeleted }) {
   const [pages, setPages] = useState([]);
+  const ownerToken = localStorage.getItem('OWNER_TOKEN') || '';
 
-  useEffect(() => { fetchList(); }, []);
+  useEffect(() => {
+    fetchList();
+    const handler = () => fetchList();
+    window.addEventListener('pages-updated', handler);
+    return () => window.removeEventListener('pages-updated', handler);
+  }, []);
 
   async function fetchList() {
     try {
-      const res = await fetch(`${API}/api/pages/list?type=in_working`);
+      const res = await fetch(`${API}/api/owner/pages/list?type=in_working`, {
+        headers: { 'X-Owner-Token': ownerToken },
+        credentials: 'include'
+      });
+      if (!res.ok) { setPages([]); return; }
       const d = await res.json();
       setPages(Array.isArray(d) ? d : []);
     } catch (e) {
@@ -19,8 +29,9 @@ export default function InWorkingPages({ onDeleted }) {
 
   async function handleDelete(id) {
     if (!window.confirm('هل تريد حذف الصفحة من قيد العمل؟')) return;
-    await fetch(`${API}/api/pages/delete/in_working/${id}`, { method: 'DELETE' });
+    await fetch(`${API}/api/owner/pages/delete/in_working/${id}`, { method: 'DELETE', headers: { 'X-Owner-Token': ownerToken }, credentials: 'include' });
     fetchList();
+    window.dispatchEvent(new Event('pages-updated'));
     if (onDeleted) onDeleted();
   }
 

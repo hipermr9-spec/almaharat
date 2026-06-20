@@ -4,12 +4,13 @@ const API = "https://api.almaharat2.com";
 
 export default function BlockedPosts() {
   const [blockedPages, setBlockedPages] = useState([]);
+  const ownerToken = localStorage.getItem('OWNER_TOKEN') || '';
 
   useEffect(() => { fetchBlocked(); }, []);
 
   async function fetchBlocked() {
     try {
-      const res = await fetch(`${API}/api/pages/list?type=blocked`);
+      const res = await fetch(`${API}/api/owner/pages/list?type=blocked`, { headers: { 'X-Owner-Token': ownerToken }, credentials: 'include' });
       const d = await res.json();
       setBlockedPages(Array.isArray(d) ? d : []);
     } catch (e) {

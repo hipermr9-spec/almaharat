@@ -117,11 +117,21 @@ def require_admin(f):
 def require_owner(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token       = request.headers.get('X-Owner-Token', '')
+        # First allow an explicit owner token (useful for scripts)
+        token = request.headers.get('X-Owner-Token', '')
         owner_token = os.environ.get('OWNER_TOKEN', 'OWNER_TOKEN_2026')
-        if token != owner_token:
-            return jsonify({"error": "Unauthorized"}), 403
-        return f(*args, **kwargs)
+        if token and token == owner_token:
+            return f(*args, **kwargs)
+
+        # Otherwise require a logged-in account with role == 'owner'
+        userid = session.get('userid')
+        if userid:
+            users = read_json(DB_PATH)
+            user = next((u for u in users if u.get('userid') == userid), None)
+            if user and user.get('role') == 'owner':
+                return f(*args, **kwargs)
+
+        return jsonify({"error": "Unauthorized"}), 403
     return decorated
 
 # =========================
