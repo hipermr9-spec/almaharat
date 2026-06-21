@@ -1270,25 +1270,38 @@ def chat():
 
         model = get_model(model_name)
 
+        accounts = load_accounts()
+
+        chat_record = None
+        if (
+            username in accounts and
+            "chats" in accounts[username] and
+            chat_id in accounts[username]["chats"]
+        ):
+            chat_record = accounts[username]["chats"][chat_id]
+
+        # ==========================
+        # بناء سجل المحادثة السابق وتمريره للنموذج كسياق
+        # ==========================
+        history = []
+        if chat_record:
+            for msg in chat_record["messages"]:
+                role = "model" if msg["role"] == "assistant" else "user"
+                history.append({"role": role, "parts": [msg["content"]]})
+
+        chat_session = model.start_chat(history=history)
+
         image_file = request.files.get("image")
 
         if not image_file:
-
-            response = model.generate_content(prompt)
-
+            response = chat_session.send_message(prompt)
         else:
-
             image_bytes = image_file.read()
-
             image_part = {
                 "mime_type": image_file.content_type,
                 "data": base64.b64encode(image_bytes).decode("utf-8"),
             }
-
-            response = model.generate_content([
-                prompt,
-                image_part
-            ])
+            response = chat_session.send_message([prompt, image_part])
 
         try:
             text = response.text
@@ -1298,65 +1311,36 @@ def chat():
         # ==========================
         # حفظ الرسائل داخل الشات
         # ==========================
-
         try:
+            if chat_record is not None:
 
-            if username and chat_id:
+                chat_record["messages"].append({"role": "user", "content": prompt})
+                chat_record["messages"].append({"role": "assistant", "content": text})
 
-                accounts = load_accounts()
+                if not chat_record.get("title"):
+                    try:
+                        title_response = model.generate_content(
+                            f"""
+                            أنشئ عنواناً قصيراً جداً
+                            من 2 إلى 5 كلمات فقط.
 
-                if (
-                    username in accounts and
-                    "chats" in accounts[username] and
-                    chat_id in accounts[username]["chats"]
-                ):
+                            الرسالة:
 
-                    chat = accounts[username]["chats"][chat_id]
+                            {prompt}
 
-                    chat["messages"].append({
-                        "role": "user",
-                        "content": prompt
-                    })
+                            أرجع العنوان فقط.
+                            """
+                        )
+                        title = title_response.text.strip()
+                        if len(title) > 50:
+                            title = title[:50]
+                        chat_record["title"] = title
+                    except Exception:
+                        chat_record["title"] = prompt[:30]
 
-                    chat["messages"].append({
-                        "role": "assistant",
-                        "content": text
-                    })
-
-                    # إنشاء عنوان تلقائي أول مرة فقط
-
-                    if not chat.get("title"):
-
-                        try:
-
-                            title_response = model.generate_content(
-                                f"""
-                                أنشئ عنواناً قصيراً جداً
-                                من 2 إلى 5 كلمات فقط.
-
-                                الرسالة:
-
-                                {prompt}
-
-                                أرجع العنوان فقط.
-                                """
-                            )
-
-                            title = title_response.text.strip()
-
-                            if len(title) > 50:
-                                title = title[:50]
-
-                            chat["title"] = title
-
-                        except Exception:
-
-                            chat["title"] = prompt[:30]
-
-                    save_accounts(accounts)
+                save_accounts(accounts)
 
         except Exception as save_error:
-
             print("CHAT SAVE ERROR:", save_error)
 
         return jsonify({
@@ -1366,7 +1350,6 @@ def chat():
         }), 200
 
     except ResourceExhausted:
-
         return jsonify({
             "error": f"تم الوصول للحد الأقصى المسموح لموديل {model_name}",
             "limited": True,
@@ -1374,28 +1357,15 @@ def chat():
         }), 429
 
     except Exception as e:
-
         msg = str(e)
-
         is_quota_error = any(
             k in msg.lower()
-            for k in [
-                "quota",
-                "rate limit",
-                "429",
-                "resource_exhausted"
-            ]
+            for k in ["quota", "rate limit", "429", "resource_exhausted"]
         )
-
         print("ERROR:", msg)
-
         return jsonify({
-            "error":
-                f"تم الوصول للحد الأقصى المسموح لموديل {model_name}"
-                if is_quota_error
-                else "حدث خطأ في الخادم، حاول مرة أخرى.",
-            "limited":
-                True if is_quota_error else None,
+            "error": f"تم الوصول للحد الأقصى المسموح لموديل {model_name}" if is_quota_error else "حدث خطأ في الخادم، حاول مرة أخرى.",
+            "limited": True if is_quota_error else None,
             "chat_id": chat_id
         }), 429 if is_quota_error else 500
     
