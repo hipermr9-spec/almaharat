@@ -32,6 +32,7 @@ import Ownerhomepage from './Pages/Website/owner_home'
 import BlockedPages from './Pages/Website/BlockedPages'
 import InWorkingPages from './Pages/Website/In_WorkingPages'
 import BlockedPosts from './Pages/Website/BlockedPosts'
+import requestverify from './Pages/sendrequest'
 
 function OldDomainPage() {
   return (
@@ -197,6 +198,7 @@ export default function App() {
           <Route path="/Owner/Blocked/Pages" element={<BlockedPages />} />
           <Route path="/Owner/Working/Pages" element={<InWorkingPages />} />
           <Route path="/Owner/Blocked/Posts" element={<BlockedPosts />} />
+          <Route path="/Send/Verify/Request" element={<requestverify />} />
           <Route path="*" element={<Error404 />} />
           </Routes>
         </PageBlocker>
