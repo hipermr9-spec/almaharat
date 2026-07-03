@@ -24,7 +24,7 @@ export default function Settings() {
 
   // ================= LOAD USER =================
   useEffect(() => {
-    const stored = Cookies.get("DONT-SHARE-THAT-COOKIE");
+    const stored = Cookies.get("user") || Cookies.get("DONT-SHARE-THAT-COOKIE");
 
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -73,7 +73,12 @@ export default function Settings() {
 
   // ================= EMAIL =================
   const saveEmail = async () => {
-    await fetch(`${BASE}/api/save-email`, {
+    if (!user?.userid) {
+      alert("لم يتم العثور على المستخدم؛ يرجى تسجيل الدخول مجددًا.");
+      return;
+    }
+
+    const res = await fetch(`${BASE}/api/save-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -81,6 +86,12 @@ export default function Settings() {
         userid: user.userid,
       }),
     });
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "حدث خطأ أثناء حفظ البريد الإلكتروني.");
+      return;
+    }
 
     setMailEnabled(true);
     updateSetting("mailEnabled", true);

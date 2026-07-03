@@ -25,6 +25,7 @@ const handleSubmit = async (e) => {
 
       Cookies.set("user", JSON.stringify(userData));
       Cookies.set("userid", userData.userid);
+      Cookies.set("DONT-SHARE-THAT-COOKIE", JSON.stringify(userData));
 
       window.location.href = "/home";
     } else {

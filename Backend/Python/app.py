@@ -259,14 +259,27 @@ def save_email():
     try:
         data   = request.get_json() or {}
         email  = (data.get("email") or "").strip().lower()
-        userid = data.get("userid")
+        userid = str(data.get("userid") or "").strip()
 
+        if not userid:
+            return jsonify({"error": "Missing userid"}), 400
         if not email or "@" not in email:
             return jsonify({"error": "Invalid email"}), 400
 
         emails = read_json(EMAILS_PATH)
-        if any(e.get("email") == email for e in emails):
-            return jsonify({"message": "Email already exists"}), 200
+        existing_by_user = next((e for e in emails if str(e.get("userid")) == userid), None)
+        duplicate_email = next((e for e in emails if e.get("email") == email and str(e.get("userid")) != userid), None)
+
+        if duplicate_email:
+            return jsonify({"error": "Email already in use by another account"}), 400
+
+        if existing_by_user:
+            if existing_by_user.get("email") == email:
+                return jsonify({"message": "Email already saved"}), 200
+            existing_by_user["email"] = email
+            existing_by_user["createdAt"] = datetime.now(timezone.utc).isoformat()
+            write_json(EMAILS_PATH, emails)
+            return jsonify({"message": "Email updated"}), 200
 
         emails.append({
             "id":        str(uuid.uuid4()),
@@ -872,7 +885,8 @@ def checkuserhasemail():
         return jsonify({"error": "User not found"}), 404
 
     emails       = read_json(EMAILS_PATH)
-    email_record = next((e for e in emails if e["userid"] == user["userid"]), None)
+    user_id_str  = str(user["userid"])
+    email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
     if not email_record:
         return jsonify({"hasEmail": False}), 200
 
@@ -926,7 +940,8 @@ def forgot_change_password():
     write_json(PASSWORD_RESET_TOKENS, tokens)
 
     emails       = read_json(EMAILS_PATH)
-    email_record = next((e for e in emails if e["userid"] == user["userid"]), None)
+    user_id_str  = str(user["userid"])
+    email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
     if email_record:
         url = f"https://almaharat2.com/users/user/{user['userid']}/{token}"
         msg = MIMEMultipart("alternative")
@@ -987,7 +1002,7 @@ def _check_requirements(userid: str):
 
     # 1. Has a linked e-mail
     emails    = read_json(EMAILS_PATH)
-    has_email = any(e.get('userid') == userid for e in emails)
+    has_email = any(str(e.get('userid')) == str(userid) for e in emails)
 
     # FIX #3 — original code did `sum(1 for f in user ...)` where `user` is a dict.
     #           Iterating over a dict yields its *keys* (strings like "userid",
