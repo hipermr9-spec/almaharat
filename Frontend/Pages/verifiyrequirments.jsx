@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import cookies from "js-cookie";
+import Cookies from "js-cookie";
 import "./App.css";
 
 // Map each card to the key returned by the Flask API in `checks`

@@ -90,7 +90,7 @@ export default function SendRequest({ userData }) {
         <>
           <h1 className="sendrequest-title">تم إرسال الطلب</h1>
           <p className="sendrequest-desc">
-            شكراً لك، سيتم مراجعة طلبك خلال يومين.
+            شكراً لك، سيتم مراجعة طلبك خلال من يوم إلى يومين.
           </p>
         </>
       )}
