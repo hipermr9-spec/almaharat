@@ -35,7 +35,38 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
-CORS(app, resources={r"/*": {"origins": ["https://almaharat2.com"]}})
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://almaharat2.com",
+            "https://www.almaharat2.com",
+            "http://localhost:3000",
+            "http://localhost:5173"
+        ],
+        "allow_headers": [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept"
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    }
+}, supports_credentials=True)
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    if origin and origin in [
+        "https://almaharat2.com",
+        "https://www.almaharat2.com",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-Requested-With,Accept"
+    return response
 
 # =========================
 # 📂 Paths

@@ -9,11 +9,14 @@ const BASE = window.location.hostname === "localhost"
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [loading, setLoading] = useState(false);
+  const user = Cookies.get("user") || Cookies.get("DONT-SHARE-THAT-COOKIE");
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  try {
+  if (user) window.location.href = "/home";
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
     const res = await fetch(`${BASE}/api/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37,6 +40,8 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
+
+  if (user) window.location.href = "/home";
 
   return (
     <div className="auth-page">

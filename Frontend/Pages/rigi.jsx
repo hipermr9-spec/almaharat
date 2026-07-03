@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./App.css";
+import Cookies from "js-cookie";
 
 const BASE = window.location.hostname === "localhost"
   ? "http://localhost:5000"
@@ -9,6 +10,7 @@ export default function Register() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const user = Cookies.get("user") || Cookies.get("DONT-SHARE-THAT-COOKIE");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,6 +38,8 @@ export default function Register() {
       setLoading(false);
     }
   };
+  
+  if (user) window.location.href = "/home";
 
   return (
     <div className="auth-page">

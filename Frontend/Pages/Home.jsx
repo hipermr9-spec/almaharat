@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import Cookies from "js-cookie";
 import "./App.css";
 
 const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
@@ -11,6 +12,10 @@ export default function Home() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const user = Cookies.get("user");
+
+  if (user) window.location.href = "/home";
 
   return (    
     <div className="home">

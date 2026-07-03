@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import Cookies from "js-cookie";
 import "./App.css";
 
@@ -43,9 +43,7 @@ const requirementsData = [
 ];
 
 export default function VerifyRequirements() {
-  // BUG FIX 1: removed unused `requirements` state.
-  // BUG FIX 2: added `userData` to store the API response so `userid` is accessible.
-  // check user id from localstorage.
+  const navigate = useNavigate();
   const [userid] = useState(Cookies.get("userid"));
   const [userData, setUserData] = useState(null);
   const [hadRequired, setHadRequired] = useState(false);
@@ -183,9 +181,7 @@ useEffect(() => {
           <button
             className="vr-btn-primary"
             disabled={!hadRequired || loading}
-            onClick={() =>
-              (href="/port/Helpers/Verify/Request/" + userData?.userid) // navigate to request page with userid
-            }
+            onClick={() => navigate("/Send/Verify/Request")}
           >
             طلب التحقق
           </button>
