@@ -37,8 +37,6 @@ function UploadZone({ files, onAdd, onRemove }) {
           cursor:'pointer', transition:'all .25s',
           background: drag ? 'rgba(99,102,241,.08)' : 'rgba(255,255,255,0.02)',
         }}
-        onMouseOver={e => e.currentTarget.style.borderColor='#6366f1'}
-        onMouseOut={e => { if (!drag) e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'; }}
       >
         <div style={{ fontSize:36, marginBottom:8 }}>📎</div>
         <p style={{ margin:0, color:'#64748b', fontSize:14 }}>

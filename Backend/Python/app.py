@@ -521,11 +521,7 @@ def health():
     if request.method == "OPTIONS":
         return "", 204
 
-    response = jsonify({"status": "healthy"})
-    response.headers.add("Access-Control-Allow-Origin", "https://almaharat2.com")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,OPTIONS")
-    return response, 200
+    return jsonify({"status": "healthy"}), 200
 
 # =========================
 # ⚙️ User settings
