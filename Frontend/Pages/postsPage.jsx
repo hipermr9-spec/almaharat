@@ -296,6 +296,8 @@ function PostCard({ post, user, onRefresh }) {
   );
 }
 
+export { PostCard }
+
 /* ─── Main Page ───────────────────────────────────────────────────────── */
 export default function PostPage() {
   const [posts, setPosts]     = useState([]);

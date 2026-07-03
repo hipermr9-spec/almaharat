@@ -33,6 +33,7 @@ import BlockedPages from './Pages/Website/BlockedPages'
 import InWorkingPages from './Pages/Website/In_WorkingPages'
 import BlockedPosts from './Pages/Website/BlockedPosts'
 import RequestVerify from './Pages/sendrequest'
+import PostLink from './Pages/PostLink'
 
 function OldDomainPage() {
   return (
@@ -177,6 +178,7 @@ export default function App() {
           <Route path="/Terms" element={<TermsOfCondition />} />
           <Route path="/Posts" element={<Posts />} />
           <Route path="/Posts/Add" element={<AddPost />} />
+          <Route path="/Posts/link/:token" element={<PostLink />} />
           <Route path="/Ranks" element={<Rank />} />
           <Route path="/Stats/:id" element={<StudentStats />} />
           <Route path="/404" element={<Error404 />} />

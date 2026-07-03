@@ -129,7 +129,7 @@ def safe_user(user):
     return {k: v for k, v in user.items() if k != 'password'}
 
 # Initialise files that must always exist
-for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH]:
+for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH, LINKONLY_POSTS_PATH]:
     if not os.path.exists(_p):
         write_json(_p, [])
 
@@ -617,8 +617,9 @@ def change_username():
 # =========================
 # 📮 Posts
 # =========================
-POSTS_PATH  = os.path.join(DATA_DIR, 'posts.json')
-POSTS_MEDIA = os.path.join(DATA_DIR, 'posts_media')
+POSTS_PATH               = os.path.join(DATA_DIR, 'posts.json')
+POSTS_MEDIA              = os.path.join(DATA_DIR, 'posts_media')
+LINKONLY_POSTS_PATH      = os.path.join(DATA_DIR, 'linkonlyposts_link.json')
 os.makedirs(POSTS_MEDIA, exist_ok=True)
 
 ALLOWED_POST_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'webm', 'mov'}
@@ -649,6 +650,21 @@ def get_post_by_id(post_id):
         posts = read_json(POSTS_PATH)
         post  = next((p for p in posts if p['id'] == post_id), None)
         if post is None:
+            return jsonify({"error": "Post not found"}), 404
+        return jsonify(post), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/posts/link/<string:token>', methods=['GET'])
+def get_post_by_link_token(token):
+    try:
+        link_map = read_json(LINKONLY_POSTS_PATH)
+        mapping  = next((item for item in link_map if item.get('token') == token), None)
+        if not mapping:
+            return jsonify({"error": "Link not found"}), 404
+        posts = read_json(POSTS_PATH)
+        post  = next((p for p in posts if p['id'] == mapping.get('post_id')), None)
+        if not post or post.get('visibility') != 'link':
             return jsonify({"error": "Post not found"}), 404
         return jsonify(post), 200
     except Exception as e:
@@ -696,9 +712,24 @@ def add_post():
             "likes": [], "dislikes": [], "comments": [],
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
+
+        if visibility == 'link':
+            link_token = uuid.uuid4().hex[:16]
+            link_map = read_json(LINKONLY_POSTS_PATH)
+            while any(item.get('token') == link_token for item in link_map):
+                link_token = uuid.uuid4().hex[:16]
+            new_post['linkToken'] = link_token
+            link_map.append({
+                'token': link_token,
+                'post_id': new_post['id'],
+                'createdAt': datetime.now(timezone.utc).isoformat()
+            })
+            write_json(LINKONLY_POSTS_PATH, link_map)
+
         posts = read_json(POSTS_PATH)
         posts.append(new_post)
         write_json(POSTS_PATH, posts)
+
         return jsonify({"message": "Post created", "post": new_post}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500

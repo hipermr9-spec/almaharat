@@ -140,6 +140,10 @@ export default function AddPost() {
       const res  = await fetch(`${API}/api/posts/add`, { method:'POST', body: form });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'حدث خطأ'); setLoading(false); return; }
+      if (data.post?.linkToken) {
+        navigate(`/Posts/link/${data.post.linkToken}`);
+        return;
+      }
       navigate('/posts');
     } catch {
       setError('تعذّر الاتصال بالخادم');
