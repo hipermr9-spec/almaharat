@@ -87,6 +87,7 @@ PASSWORD_RESET_TOKENS = os.path.join(DATA_DIR, 'password_reset_tokens.json')
 IN_WORKING_PAGES_PATH = os.path.join(DATA_DIR, 'In_WorkingPages.json')
 BLOCKED_PAGES_PATH    = os.path.join(DATA_DIR, 'BlockedPages.json')
 ONLINE_PATH           = os.path.join(DATA_DIR, 'online.json')
+LINKONLY_POSTS_PATH   = os.path.join(DATA_DIR, 'linkonlyposts_link.json')
 
 SENDER_EMAIL    = "hipermr9@gmail.com"
 SENDER_PASSWORD = "fguj cmet zxgq fllm"
