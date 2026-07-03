@@ -38,7 +38,6 @@ app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 CORS(app, resources={
     r"/api/*": {
         "origins": [
-            "https://almaharat2.com",
             "https://www.almaharat2.com",
             "http://localhost:3000",
             "http://localhost:5173"
@@ -58,7 +57,6 @@ CORS(app, resources={
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
     if origin and origin in [
-        "https://almaharat2.com",
         "https://www.almaharat2.com",
         "http://localhost:3000",
         "http://localhost:5173"
