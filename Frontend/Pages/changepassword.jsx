@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import cookies from "js-cookie";
+import Cookies from "js-cookie";
 import "./App.css";
 
 const BASE = "https://api.almaharat2.com/api";

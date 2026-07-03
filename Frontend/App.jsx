@@ -178,7 +178,7 @@ export default function App() {
           <Route path="/Posts" element={<Posts />} />
           <Route path="/Posts/Add" element={<AddPost />} />
           <Route path="/Ranks" element={<Rank />} />
-          <Route path="/Stats" element={<StudentStats />} />
+          <Route path="/Stats/:id" element={<StudentStats />} />
           <Route path="/404" element={<Error404 />} />
           <Route path="/Change/Password" element={<ChangePassword />} />
           <Route path="/port/users/user/:id/tokens/:token" element={<tokens />} />

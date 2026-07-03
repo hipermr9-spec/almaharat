@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import cookies from "js-cookie";
+import Cookies from "js-cookie";
 import "./App.css";
 
 export default function Games() {
