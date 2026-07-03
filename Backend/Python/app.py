@@ -35,13 +35,15 @@ app.config['MAIL_USERNAME']       = 'hipermr9@gmail.com'
 app.config['MAIL_PASSWORD']       = 'bcij rdvo rpov hsgp'
 app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
+ALLOWED_ORIGINS = [
+    "https://www.almaharat2.com",
+    "http://localhost:3000",
+    "http://localhost:5173"
+]
+
 CORS(app, resources={
     r"/api/*": {
-        "origins": [
-            "https://www.almaharat2.com",
-            "http://localhost:3000",
-            "http://localhost:5173"
-        ],
+        "origins": ALLOWED_ORIGINS,
         "allow_headers": [
             "Content-Type",
             "Authorization",
@@ -56,12 +58,13 @@ CORS(app, resources={
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
-    if origin and origin in [
-        "https://www.almaharat2.com",
-        "http://localhost:3000",
-        "http://localhost:5173"
-    ]:
+    if origin and (
+        origin == "https://www.almaharat2.com" or
+        origin == "http://localhost:3000" or
+        origin == "http://localhost:5173"
+    ):
         response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-Requested-With,Accept,ngrok-skip-browser-warning"

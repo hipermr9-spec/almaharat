@@ -53,7 +53,7 @@ function OldDomainPage() {
       <p>يمكنك الدخول من خلال:</p>
 
       <a
-        href="https://almaharat2.com"
+        href="https://www.almaharat2.com"
         style={{
           color: '#007bff',
           fontSize: '20px',
