@@ -12,11 +12,7 @@ export default function Enrichments() {
 
   // جلب البيانات من السيرفر
   useEffect(() => {
-    fetch("https://api.almaharat2.com/api/enrichments", {
-      headers: {
-        "ngrok-skip-browser-warning": "true"
-      }
-    })
+    fetch("https://api.almaharat2.com/api/enrichments")
       .then(res => res.json())
       .then(res => {
         if (Array.isArray(res)) {

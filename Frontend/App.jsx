@@ -75,7 +75,6 @@ function ServerChecker({ children }) {
       try {
         const response = await fetch(`${API_BASE_URL}/api/health`, {
           headers: {
-            "ngrok-skip-browser-warning": "true",
             "Accept": "application/json"
           }
         })
