@@ -57,6 +57,17 @@ export default function SendRequest({ userData }) {
 
     setLoading(true);
 
+    // Helper function to escape HTML special characters
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    };
+
+    const username = escapeHtml(user?.username || userData?.username || "User");
+    const escapedEmail = escapeHtml(email);
+
     const message = {
       title: "طلب جديد من " + (user?.username || userData?.username || "User"),
       content:
@@ -66,8 +77,8 @@ export default function SendRequest({ userData }) {
       styleandhtml: `
         <div style="color:#333;font-family:Arial">
           <h2>طلب تحقق جديد</h2>
-          <p>المستخدم: ${user?.username || userData?.username || "User"}</p>
-          <p>البريد: ${email}</p>
+          <p>المستخدم: ${username}</p>
+          <p>البريد: ${escapedEmail}</p>
         </div>
       `,
       useremail: email,

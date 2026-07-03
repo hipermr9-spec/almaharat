@@ -15,33 +15,49 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Input validation
+    if (!form.username.trim()) {
+      alert("⚠️ الرجاء إدخال اسم المستخدم");
+      return;
+    }
+    
+    if (!form.password.trim()) {
+      alert("⚠️ الرجاء إدخال كلمة المرور");
+      return;
+    }
+    
+    if (form.password.length < 6) {
+      alert("⚠️ كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      return;
+    }
+    
     setLoading(true);
     try {
-    const res = await fetch(`${BASE}/api/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      const { chats, ...userData } = data.user; // ignore chats, keep the rest
+      const res = await fetch(`${BASE}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const { chats, ...userData } = data.user; // ignore chats, keep the rest
 
-      Cookies.set("user", JSON.stringify(userData));
-      Cookies.set("userid", userData.userid);
-      Cookies.set("DONT-SHARE-THAT-COOKIE", JSON.stringify(userData));
+        Cookies.set("user", JSON.stringify(userData));
+        Cookies.set("userid", userData.userid);
+        Cookies.set("DONT-SHARE-THAT-COOKIE", JSON.stringify(userData));
 
-      window.location.href = "/home";
-    } else {
-      alert("⚠️ " + data.error);
+        window.location.href = "/home";
+      } else {
+        alert("⚠️ " + (data.error || "فشل تسجيل الدخول"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("❌ تعذر الاتصال بالمنصة!");
+    } finally {
+      setLoading(false);
     }
-  } catch {
-    alert("❌ تعذر الاتصال بالمنصة!");
-  } finally {
-    setLoading(false);
-  }
-};
-
-  if (user) window.location.href = "/home";
+  };
 
   return (
     <div className="auth-page">

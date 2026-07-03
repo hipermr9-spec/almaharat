@@ -12,9 +12,18 @@ export default function Games() {
   useEffect(() => {
     const stored = Cookies.get("DONT-SHARE-THAT-COOKIE");
     if (stored) {
-      const parsed = JSON.parse(stored);
-      setUser(parsed);
-      setIsAdmin(parsed.role === "admin");
+      try {
+        const parsed = JSON.parse(stored);
+        setUser(parsed);
+        setIsAdmin(parsed?.role === "admin");
+      } catch (err) {
+        console.error("Error parsing user session:", err);
+        setUser(null);
+        setIsAdmin(false);
+      }
+    } else {
+      setUser(null);
+      setIsAdmin(false);
     }
   }, []);
 

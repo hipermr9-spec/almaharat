@@ -8,18 +8,42 @@ export default function Enrichments() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [data, setData] = useState([]);
   const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   // جلب البيانات من السيرفر
   useEffect(() => {
-    fetch("https://api.almaharat2.com/api/enrichments")
-      .then(res => res.json())
-      .then(res => {
-        if (Array.isArray(res)) {
-          setData(res);
+    let isMounted = true;
+    
+    const fetchEnrichments = async () => {
+      try {
+        const res = await fetch("https://api.almaharat2.com/api/enrichments");
+        if (!res.ok) throw new Error('Failed to fetch enrichments');
+        const result = await res.json();
+        
+        if (isMounted) {
+          if (Array.isArray(result)) {
+            setData(result);
+            setError(null);
+          } else {
+            setData([]);
+            setError('Invalid data format');
+          }
+          setLoading(false);
         }
-      })
-      .catch(err => console.error("Error fetching data:", err));
+      } catch (err) {
+        if (isMounted) {
+          console.error("Error fetching data:", err);
+          setError('Failed to load enrichments');
+          setData([]);
+          setLoading(false);
+        }
+      }
+    };
+    
+    fetchEnrichments();
+    return () => { isMounted = false; };
   }, []);
 
   // التحقق من الجلسة والصلاحيات
@@ -38,6 +62,7 @@ export default function Enrichments() {
       }
     } catch (e) {
       console.error("Error parsing user session");
+      navigate("/login");
     }
   }, [navigate]);
 

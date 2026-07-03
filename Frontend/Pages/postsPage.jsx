@@ -149,27 +149,39 @@ function PostCard({ post, user, onRefresh }) {
 
   async function handleLike() {
     if (!user) return;
-    const res = await fetch(`${API}/api/posts/${post.id}/like`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    if (res.ok) {
-      const d = await res.json();
-      setLikes(d.likes); setDislikes(d.dislikes);
-      setLiked(l => !l); if (disliked) setDisliked(false);
+    try {
+      const res = await fetch(`${API}/api/posts/${post.id}/like`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userid: user.userid })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setLikes(d.likes); setDislikes(d.dislikes);
+        setLiked(l => !l); if (disliked) setDisliked(false);
+      } else {
+        console.error('Failed to like post:', res.status);
+      }
+    } catch (err) {
+      console.error('Error liking post:', err);
     }
   }
 
   async function handleDislike() {
     if (!user) return;
-    const res = await fetch(`${API}/api/posts/${post.id}/dislike`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    if (res.ok) {
-      const d = await res.json();
-      setLikes(d.likes); setDislikes(d.dislikes);
-      setDisliked(l => !l); if (liked) setLiked(false);
+    try {
+      const res = await fetch(`${API}/api/posts/${post.id}/dislike`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userid: user.userid })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setLikes(d.likes); setDislikes(d.dislikes);
+        setDisliked(l => !l); if (liked) setLiked(false);
+      } else {
+        console.error('Failed to dislike post:', res.status);
+      }
+    } catch (err) {
+      console.error('Error disliking post:', err);
     }
   }
 
@@ -177,30 +189,56 @@ function PostCard({ post, user, onRefresh }) {
     e.preventDefault();
     if (!newComment.trim() || !user) return;
     setSubmitting(true);
-    await fetch(`${API}/api/posts/${post.id}/comment`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid, username: user.username, text: newComment })
-    });
-    setNewComment(''); setSubmitting(false); onRefresh();
+    try {
+      const res = await fetch(`${API}/api/posts/${post.id}/comment`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userid: user.userid, username: user.username, text: newComment })
+      });
+      if (res.ok) {
+        setNewComment(''); onRefresh();
+      } else {
+        console.error('Failed to post comment:', res.status);
+      }
+    } catch (err) {
+      console.error('Error posting comment:', err);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleDeleteComment(commentId) {
     if (!user) return;
-    await fetch(`${API}/api/posts/${post.id}/comment/${commentId}`, {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    onRefresh();
+    try {
+      const res = await fetch(`${API}/api/posts/${post.id}/comment/${commentId}`, {
+        method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userid: user.userid })
+      });
+      if (res.ok) {
+        onRefresh();
+      } else {
+        console.error('Failed to delete comment:', res.status);
+      }
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+    }
   }
 
   async function handleDeletePost() {
     if (!user || user.userid !== post.userid) return;
     if (!window.confirm('حذف المنشور؟')) return;
-    await fetch(`${API}/api/posts/${post.id}`, {
-      method:'DELETE', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ userid: user.userid })
-    });
-    onRefresh();
+    try {
+      const res = await fetch(`${API}/api/posts/${post.id}`, {
+        method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ userid: user.userid })
+      });
+      if (res.ok) {
+        onRefresh();
+      } else {
+        console.error('Failed to delete post:', res.status);
+      }
+    } catch (err) {
+      console.error('Error deleting post:', err);
+    }
   }
 
   return (

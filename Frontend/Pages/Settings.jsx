@@ -58,17 +58,24 @@ export default function Settings() {
     window.location.href = "/";
   };
 
-  // ================= API =================
   const updateSetting = async (key, value) => {
-    await fetch(`${BASE}/api/update-setting`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userid: user.userid,
-        key,
-        value,
-      }),
-    });
+    try {
+      const res = await fetch(`${BASE}/api/update-setting`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userid: user.userid,
+          key,
+          value,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        console.error('Update setting failed:', data.error);
+      }
+    } catch (err) {
+      console.error('Error updating setting:', err);
+    }
   };
 
   // ================= EMAIL =================
@@ -77,66 +84,137 @@ export default function Settings() {
       alert("لم يتم العثور على المستخدم؛ يرجى تسجيل الدخول مجددًا.");
       return;
     }
-
-    const res = await fetch(`${BASE}/api/save-email`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email,
-        userid: user.userid,
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || "حدث خطأ أثناء حفظ البريد الإلكتروني.");
+    
+    if (!email.includes('@')) {
+      alert("الرجاء إدخال بريد إلكتروني صحيح");
       return;
     }
 
-    setMailEnabled(true);
-    updateSetting("mailEnabled", true);
-    setActiveModal(null);
+    try {
+      const res = await fetch(`${BASE}/api/save-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          userid: user.userid,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "حدث خطأ أثناء حفظ البريد الإلكتروني.");
+        return;
+      }
+
+      setMailEnabled(true);
+      updateSetting("mailEnabled", true);
+      setActiveModal(null);
+      alert("تم حفظ البريد بنجاح ✅");
+    } catch (err) {
+      console.error('Error saving email:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
   };
 
   // ================= USERNAME =================
   const changeUsername = async () => {
-    await fetch(`${BASE}/api/change-username`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userid: user.userid,
-        newUsername,
-      }),
-    });
+    if (!newUsername.trim()) {
+      alert("الرجاء إدخال اسم مستخدم جديد");
+      return;
+    }
 
-    setActiveModal(null);
+    try {
+      const res = await fetch(`${BASE}/api/change-username`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userid: user.userid,
+          newUsername,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "فشل تغيير اسم المستخدم");
+        return;
+      }
+
+      alert("تم تغيير اسم المستخدم بنجاح ✅");
+      setActiveModal(null);
+    } catch (err) {
+      console.error('Error changing username:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
   };
 
   // ================= PASSWORD =================
   const changePassword = async () => {
-    await fetch(`${BASE}/api/change-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userid: user.userid,
-        oldPassword: oldPass,
-        newPassword: newPass,
-      }),
-    });
+    if (!oldPass.trim()) {
+      alert("الرجاء إدخال كلمة المرور القديمة");
+      return;
+    }
+    
+    if (!newPass.trim()) {
+      alert("الرجاء إدخال كلمة المرور الجديدة");
+      return;
+    }
+    
+    if (newPass.length < 6) {
+      alert("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      return;
+    }
 
-    setActiveModal(null);
+    try {
+      const res = await fetch(`${BASE}/api/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userid: user.userid,
+          oldPassword: oldPass,
+          newPassword: newPass,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "فشل تغيير كلمة المرور");
+        return;
+      }
+
+      alert("تم تغيير كلمة المرور بنجاح ✅");
+      setActiveModal(null);
+    } catch (err) {
+      console.error('Error changing password:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
   };
 
   // ================= DELETE =================
   const deleteAccount = async () => {
-    await fetch(`${BASE}/api/delete-account`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userid: user.userid }),
-    });
+    if (!window.confirm('هل أنتِ متأكدة من حذف حسابك؟ هذا الإجراء لا يمكن التراجع عنه!')) {
+      return;
+    }
 
-    Cookies.remove("user");
-    window.location.href = "/";
+    try {
+      const res = await fetch(`${BASE}/api/delete-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userid: user.userid }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || "فشل حذف الحساب");
+        return;
+      }
+
+      Cookies.remove("user");
+      alert("تم حذف حسابك بنجاح");
+      window.location.href = "/";
+    } catch (err) {
+      console.error('Error deleting account:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
   };
 
   return (

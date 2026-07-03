@@ -178,15 +178,22 @@ export default function Profile() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
   const [selected, setSelected] = useState(null);
+  const abortControllerRef = useRef(null);
 
   const fetchData = useCallback(async () => {
     if (!userId) {
-      // Previously this just returned, leaving `loading` stuck at its
-      // initial `true` value forever — silent infinite spinner.
       setError("تعذر العثور على معرف المستخدم. الرجاء تسجيل الدخول مرة أخرى.");
       setLoading(false);
       return;
     }
+    
+    // Cancel previous requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     setLoading(true);
     setError(null);
 
@@ -195,29 +202,42 @@ export default function Profile() {
       if (isOwn && stored) {
         setUser(stored);
       } else {
-        const r = await fetch(`${API}/api/users/public/${userId}`);
+        const r = await fetch(`${API}/api/users/public/${userId}`, { signal });
         if (!r.ok) throw new Error("المستخدم غير موجود");
         setUser(await r.json());
       }
     } catch (e) {
-      setError(e.message);
+      if (e.name !== 'AbortError') {
+        setError(e.message);
+      }
       setLoading(false);
       return; // no user → nothing else to fetch
     }
 
     // ── Posts — separate try/catch so a failure here doesn't blank the profile ──
     try {
-      const pr = await fetch(`${API}/api/posts/user/${userId}`);
+      const pr = await fetch(`${API}/api/posts/user/${userId}`, { signal });
       if (pr.ok) setPosts(await pr.json());
     } catch (e) {
-      console.error("Failed to load posts:", e);
+      if (e.name !== 'AbortError') {
+        console.error("Failed to load posts:", e);
+      }
       // intentionally not setting `error` — show the profile, just without posts
     }
 
     setLoading(false);
-  }, [userId, isOwn]);
+  }, [userId, isOwn, stored]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { 
+    fetchData();
+    
+    return () => {
+      // Cleanup: abort any in-flight requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [fetchData]);
 
   // ── Loading ──
   if (loading) {
