@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Cookies from 'js-cookie';
 import './App.css';
 import BlockedPosts from './Website/BlockedPosts';
 
@@ -304,14 +305,24 @@ export default function PostPage() {
   const [isAdmin, setIsAdmin]   = useState(false);
   const navigate = useNavigate();
 
-  const user = (() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } })();
+  const user = (() => {
+    try {
+      const cookieValue = Cookies.get('DONT-SHARE-THAT-COOKIE') || Cookies.get('user');
+      return cookieValue ? JSON.parse(cookieValue) : null;
+    } catch {
+      return null;
+    }
+  })();
 
   useEffect(() => {
     if (user?.role === 'admin') setIsAdmin(true);
-  }, []);
+  }, [user]);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    Cookies.remove('DONT-SHARE-THAT-COOKIE');
+    Cookies.remove('user');
+    Cookies.remove('userid');
+    localStorage.removeItem('user');
     window.location.href = "/login";
   };
 
