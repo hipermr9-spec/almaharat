@@ -81,8 +81,16 @@ function MediaGrid({ media }) {
                 position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover',
                 transition:'transform .4s', cursor:'pointer'
               }}
-              onMouseOver={e => e.currentTarget.style.transform='scale(1.04)'}
-              onMouseOut={e => e.currentTarget.style.transform='scale(1)'}
+              onMouseOver={e => {
+                const el = e.currentTarget
+                if (!el) return
+                el.style.transform = 'scale(1.04)'
+              }}
+              onMouseOut={e => {
+                const el = e.currentTarget
+                if (!el) return
+                el.style.transform = 'scale(1)'
+              }}
               />
           }
           {i === 3 && media.length > 4 && (
@@ -109,11 +117,18 @@ function ActionBtn({ icon, count, active, activeColor, onClick }) {
       color: active ? activeColor : '#64748b',
       fontWeight:600, fontSize:14, transition:'all .2s',
     }}
-    onMouseOver={e => { e.currentTarget.style.background = `${activeColor}22`; e.currentTarget.style.color = activeColor; }}
+    onMouseOver={e => {
+      const el = e.currentTarget
+      if (!el) return
+      el.style.background = `${activeColor}22`
+      el.style.color = activeColor
+    }}
     onMouseOut={e => {
+      const el = e.currentTarget
+      if (!el) return
       if (!active) {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-        e.currentTarget.style.color = '#64748b';
+        el.style.background = 'rgba(255,255,255,0.04)'
+        el.style.color = '#64748b'
       }
     }}>
       {icon} <span>{count}</span>
@@ -195,8 +210,16 @@ function PostCard({ post, user, onRefresh }) {
       animation:'slideUp .4s ease', boxShadow:'0 4px 30px rgba(0,0,0,.4)',
       transition:'box-shadow .3s',
     }}
-    onMouseOver={e => e.currentTarget.style.boxShadow='0 8px 40px rgba(99,102,241,0.15)'}
-    onMouseOut={e => e.currentTarget.style.boxShadow='0 4px 30px rgba(0,0,0,.4)'}
+    onMouseOver={e => {
+      const el = e.currentTarget
+      if (!el) return
+      el.style.boxShadow='0 8px 40px rgba(99,102,241,0.15)'
+    }}
+    onMouseOut={e => {
+      const el = e.currentTarget
+      if (!el) return
+      el.style.boxShadow='0 4px 30px rgba(0,0,0,.4)'
+    }}
     >
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:14 }}>
         <Avatar name={post.username} size={44} />
@@ -370,8 +393,18 @@ export default function PostPage() {
                 fontSize:14, fontFamily:"'Tajawal',sans-serif",
                 boxShadow:'0 4px 20px rgba(99,102,241,.4)', transition:'transform .2s, box-shadow .2s'
               }}
-              onMouseOver={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 6px 28px rgba(99,102,241,.55)'; }}
-              onMouseOut={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 4px 20px rgba(99,102,241,.4)'; }}
+              onMouseOver={e => {
+                const el = e.currentTarget
+                if (!el) return
+                el.style.transform='translateY(-2px)'
+                el.style.boxShadow='0 6px 28px rgba(99,102,241,.55)'
+              }}
+              onMouseOut={e => {
+                const el = e.currentTarget
+                if (!el) return
+                el.style.transform='translateY(0)'
+                el.style.boxShadow='0 4px 20px rgba(99,102,241,.4)'
+              }}
               >+ منشور جديد</button>
             )}
           </div>
