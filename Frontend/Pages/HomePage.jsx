@@ -14,17 +14,25 @@ export default function Home() {
   const prevPointsRef = useRef(null);
 
   useEffect(() => {
-    const sessionUser = Cookies.get("user");
+    const sessionUser = Cookies.get("user") || Cookies.get("DONT-SHARE-THAT-COOKIE");
     if (!sessionUser) {
       window.location.href = "/login";
       return;
     }
-    const parsed = JSON.parse(sessionUser);
-    setUser(parsed);
-    fetchLivePoints(parsed.userid);
-    if (parsed.role === "admin") {
-      setIsAdmin(true);
-      loadAllUsers();
+    
+    try {
+      const parsed = JSON.parse(sessionUser);
+      setUser(parsed);
+      if (parsed?.userid) {
+        fetchLivePoints(parsed.userid);
+      }
+      if (parsed?.role === "admin") {
+        setIsAdmin(true);
+        loadAllUsers();
+      }
+    } catch (err) {
+      console.error("Error parsing user session:", err);
+      window.location.href = "/login";
     }
   }, []);
 
@@ -44,36 +52,58 @@ export default function Home() {
     prevPointsRef.current = user?.points;
   }, [user?.points]);
 
-  // ✅ X-Admin-Token header added
+  // ✅ X-Admin-Token header added with proper error handling
   const fetchLivePoints = async (userid) => {
+    if (!userid) {
+      console.error("No userid provided");
+      return;
+    }
     try {
       const res = await fetch(
         `https://api.almaharat2.com/api/admin/get_points/${userid}`,
-        { headers: { "X-Admin-Token": ADMIN_TOKEN } }
+        { 
+          headers: { "X-Admin-Token": ADMIN_TOKEN },
+          credentials: 'include'
+        }
       );
-      const data = await res.json();
-      if (res.ok) {
-        setUser((prev) => {
-          const updated = { ...prev, points: data.points };
-          localStorage.setItem("user", JSON.stringify(updated));
-          return updated;
-        });
+      
+      if (!res.ok) {
+        console.error(`Failed to fetch points: ${res.status} ${res.statusText}`);
+        return;
       }
+      
+      const data = await res.json();
+      setUser((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, points: data.points };
+        Cookies.set("user", JSON.stringify(updated), { expires: 7 });
+        Cookies.set("DONT-SHARE-THAT-COOKIE", JSON.stringify(updated), { expires: 7 });
+        return updated;
+      });
     } catch (err) {
-      console.error("error points");
+      console.error("Error fetching points:", err.message);
     }
   };
 
-  // ✅ X-Admin-Token header added
+  // ✅ X-Admin-Token header added with proper error handling
   const loadAllUsers = async () => {
     try {
       const res = await fetch("https://api.almaharat2.com/api/admin/users", {
         headers: { "X-Admin-Token": ADMIN_TOKEN },
+        credentials: 'include'
       });
+      
+      if (!res.ok) {
+        console.error(`Failed to load users: ${res.status} ${res.statusText}`);
+        return;
+      }
+      
       const data = await res.json();
-      if (res.ok) setAllUsers(data);
+      if (Array.isArray(data)) {
+        setAllUsers(data);
+      }
     } catch (err) {
-      console.error("error users");
+      console.error("Error loading users:", err.message);
     }
   };
 
@@ -83,8 +113,14 @@ export default function Home() {
     );
   };
 
-  // ✅ X-Admin-Token header added
+  // ✅ X-Admin-Token header added with proper error handling
   const savePoints = async (userid, points) => {
+    if (!userid || points === null || points === undefined) {
+      console.error("Invalid userid or points");
+      alert("خطأ: بيانات غير صحيحة");
+      return;
+    }
+
     try {
       const res = await fetch("https://api.almaharat2.com/api/admin/update_points", {
         method: "POST",
@@ -92,26 +128,44 @@ export default function Home() {
           "Content-Type": "application/json",
           "X-Admin-Token": ADMIN_TOKEN,
         },
-        body: JSON.stringify({ userid, points }),
+        credentials: 'include',
+        body: JSON.stringify({ userid, points: parseInt(points) }),
       });
-      if (res.ok) {
-        alert("تم الحفظ");
-        if (user?.userid === userid) fetchLivePoints(userid);
-        loadAllUsers();
-      } else {
-        alert("فشل الحفظ");
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        console.error(`Failed to save points: ${res.status}`, errData);
+        alert(errData.error || "فشل حفظ النقاط");
+        return;
       }
+      
+      alert("تم حفظ النقاط بنجاح ✅");
+      if (user?.userid === userid) {
+        fetchLivePoints(userid);
+      }
+      loadAllUsers();
     } catch (err) {
-      console.error("server error");
+      console.error("Error saving points:", err.message);
+      alert("خطأ في الاتصال بالخادم");
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
+    Cookies.remove("user");
+    Cookies.remove("userid");
+    Cookies.remove("DONT-SHARE-THAT-COOKIE");
     window.location.href = "/login";
   };
 
-  if (!user) return <div className="loading">جاري الدخول...</div>;
+  if (!user) {
+    return (
+      <div className="loading">
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <p>جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="home-layout">

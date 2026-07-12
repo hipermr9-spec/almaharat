@@ -49,7 +49,9 @@ CORS(app, resources={
             "Authorization",
             "X-Requested-With",
             "Accept",
-            "ngrok-skip-browser-warning"
+            "ngrok-skip-browser-warning",
+            "X-Admin-Token",
+            "X-Owner-Token"
         ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     }
