@@ -4,6 +4,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+
+# أضف هذا السطر لإعطاء صلاحيات التنفيذ لـ vite
+RUN chmod +x ./node_modules/.bin/vite
+
 RUN npm run build
 
 # ---------- FINAL: Python backend + serves frontend ----------
