@@ -147,7 +147,7 @@ function PageBlocker({ children }) {
 export default function App() {
   const hostname = window.location.hostname
 
-  if (hostname === "almaharat.ngrok.app") {
+  if (hostname === "almaharat2.com") {
     return (
       <BrowserRouter>
         <Routes>
