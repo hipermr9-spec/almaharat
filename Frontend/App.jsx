@@ -147,7 +147,7 @@ function PageBlocker({ children }) {
 export default function App() {
   const hostname = window.location.hostname
 
-  if (hostname === "old.almaharat2.com") {
+  if (hostname === "almaharat2.com") {
     return (
       <BrowserRouter>
         <Routes>
