@@ -37,6 +37,7 @@ app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
 ALLOWED_ORIGINS = [
     "https://www.almaharat2.com",
+    "https://storage.almaharat2.com"
     "http://localhost:3000",
     "http://localhost:5173"
 ]
@@ -202,12 +203,13 @@ def register():
         "points":    0,
         "role":      "user",
         "verified":  False,
-        "followers": 0,
-        "following": 0,
-        "lessons":   0,
-        "friends":   [],  # FIX #10 — store as list, not string
         "is_banned": False,
         "chats": {},
+        "followers": {},
+        "lesson_progress": 0,
+        "following": {},
+        "Friends": [],
+        "profile_picture": ""
     }
     accounts.append(new_user)
     write_json(DB_PATH, accounts)
@@ -1574,14 +1576,88 @@ def rename_chat(chat_id):
 
     return jsonify({"success": True})
 
+def safe_user(user):
+    u = {k: v for k, v in user.items() if k != 'password'}
+
+    followers = u.get('followers')
+    if isinstance(followers, dict):
+        u['followers'] = len(followers)
+    elif not isinstance(followers, int):
+        u['followers'] = 0
+
+    following = u.get('following')
+    if isinstance(following, dict):
+        u['following'] = len(following)
+    elif not isinstance(following, int):
+        u['following'] = 0
+
+    return u
+
 @app.route("/api/users/public/<string:userid>", methods=["GET"])
 def get_public_user(userid):
     users = read_json(DB_PATH)
-    user = next((u for u in users if u.get("userid") == userid), None)
+    user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
     if not user:
         return jsonify({"error": "المستخدم غير موجود"}), 404
-    return jsonify(safe_user(user)), 200
 
+    result = safe_user(user)
+
+    viewer_id = str(request.args.get("viewer_id") or "").strip()
+    if viewer_id:
+        followers = user.get("followers")
+        result["is_following"] = isinstance(followers, dict) and viewer_id in followers
+
+    return jsonify(result), 200
+
+@app.route("/api/users/follow/<string:userid>", methods=["POST"])
+def toggle_follow_user(userid):
+    try:
+        data = request.get_json() or {}
+        follower_id = str(data.get("follower_id") or session.get("userid") or "").strip()
+        target_id   = str(userid)
+
+        if not follower_id:
+            return jsonify({"error": "follower_id مطلوب"}), 400
+        if follower_id == target_id:
+            return jsonify({"error": "لا يمكنك متابعة نفسك"}), 400
+
+        users = read_json(DB_PATH)
+        target_user   = next((u for u in users if str(u.get("userid")) == target_id), None)
+        follower_user = next((u for u in users if str(u.get("userid")) == follower_id), None)
+
+        if not target_user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
+        if not follower_user:
+            return jsonify({"error": "حساب المتابع غير موجود"}), 404
+
+        # Normalize in case either field is missing or was previously an int/list
+        if not isinstance(target_user.get("followers"), dict):
+            target_user["followers"] = {}
+        if not isinstance(follower_user.get("following"), dict):
+            follower_user["following"] = {}
+
+        now = datetime.now(timezone.utc).isoformat()
+        already_following = follower_id in target_user["followers"]
+
+        if already_following:
+            target_user["followers"].pop(follower_id, None)
+            follower_user["following"].pop(target_id, None)
+            now_following = False
+        else:
+            target_user["followers"][follower_id] = now
+            follower_user["following"][target_id] = now
+            now_following = True
+
+        write_json(DB_PATH, users)
+
+        return jsonify({
+            "following":       now_following,
+            "followers_count": len(target_user["followers"])
+        }), 200
+    except Exception as e:
+        print("FOLLOW TOGGLE ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+    
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

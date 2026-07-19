@@ -2,21 +2,28 @@
  * Profile.jsx
  *
  * Route mapping (add to your router):
- *   <Route path="/profile"    element={<Profile />} />   ← own profile
+ *   <Route path="/Profile"    element={<Profile />} />   ← own profile
  *   <Route path="/:userid"    element={<Profile />} />   ← public profile
  *
- * Requires backend route GET /api/users/public/:userid (see app.py fix).
+ * Requires backend routes:
+ *   GET  /api/users/public/:userid?viewer_id=<id>   (returns is_following when viewer_id given)
+ *   POST /api/users/follow/:userid  { follower_id }  (toggles follow/unfollow)
  *
- * FIX: original code read the logged-in user from localStorage, but
- * Login.jsx actually stores it in a cookie via js-cookie. That mismatch
- * meant `stored` was always null and the page redirected straight back
- * to /login. Now reads from the cookie instead.
+ * CHANGES IN THIS PASS:
+ * 1. Added follow/unfollow: tracks isFollowing state, sends viewer_id when
+ *    fetching a public profile so the button reflects the real relationship
+ *    on load, and calls POST /api/users/follow/:userid to toggle it.
+ * 2. Verified badge (avatar corner + chip) renders /verified-icon.png.
+ * 3. Reads the logged-in user from the cookie ONCE via useState(getStoredUser)
+ *    lazy init (stable reference across renders — prevents the fetch/abort loop).
+ * 4. isOwn compares location.pathname case-insensitively (route is "/Profile").
+ * 5. Imports "./Profile.css" for the page's styling.
  */
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Cookies from "js-cookie";
-import "./App.css";
+import "./Profile.css";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
@@ -39,6 +46,18 @@ const getStoredUser = () => {
     return null;
   }
 };
+
+// ─── VerifiedIcon ──────────────────────────────────────────────────────────────
+function VerifiedIcon({ className }) {
+  return (
+    <img
+      src="/verified-icon.png"
+      alt="حساب موثق"
+      className={className}
+      draggable={false}
+    />
+  );
+}
 
 // ─── AnimatedStat ─────────────────────────────────────────────────────────────
 function AnimatedStat({ value, label }) {
@@ -97,7 +116,6 @@ function PostCard({ post, onOpen }) {
 
 // ─── PostModal ────────────────────────────────────────────────────────────────
 function PostModal({ post, onClose }) {
-  // Close on Escape
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
@@ -156,28 +174,28 @@ export default function Profile() {
   const location            = useLocation();
   const navigate            = useNavigate();
 
-  // Detect which mode we're in
-  const isOwn   = location.pathname === "/profile";
-  const stored  = getStoredUser();
-  const userId  = isOwn ? stored?.userid : paramId;
+  const [stored] = useState(getStoredUser);
 
-  // Redirect own-profile to login if not authenticated
+  const isOwn  = location.pathname.toLowerCase() === "/profile";
+  const userId = isOwn ? stored?.userid : paramId;
+
   useEffect(() => {
     if (isOwn && !stored) navigate("/login", { replace: true });
   }, [isOwn, stored, navigate]);
 
-  // If viewing own profile via /:userid, redirect to /profile
   useEffect(() => {
     if (!isOwn && stored && paramId === stored.userid) {
-      navigate("/profile", { replace: true });
+      navigate("/Profile", { replace: true });
     }
   }, [isOwn, stored, paramId, navigate]);
 
-  const [user,     setUser]     = useState(null);
-  const [posts,    setPosts]    = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(null);
-  const [selected, setSelected] = useState(null);
+  const [user,        setUser]        = useState(null);
+  const [posts,       setPosts]       = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [selected,    setSelected]    = useState(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followBusy,  setFollowBusy]  = useState(false);
   const abortControllerRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -186,14 +204,13 @@ export default function Profile() {
       setLoading(false);
       return;
     }
-    
-    // Cancel previous requests
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    
+
     setLoading(true);
     setError(null);
 
@@ -201,17 +218,24 @@ export default function Profile() {
     try {
       if (isOwn && stored) {
         setUser(stored);
+        setIsFollowing(false);
       } else {
-        const r = await fetch(`${API}/api/users/public/${userId}`, { signal });
+        const viewerId = stored?.userid ?? "";
+        const r = await fetch(
+          `${API}/api/users/public/${userId}?viewer_id=${encodeURIComponent(viewerId)}`,
+          { signal }
+        );
         if (!r.ok) throw new Error("المستخدم غير موجود");
-        setUser(await r.json());
+        const data = await r.json();
+        setUser(data);
+        setIsFollowing(!!data.is_following);
       }
     } catch (e) {
-      if (e.name !== 'AbortError') {
+      if (e.name !== "AbortError") {
         setError(e.message);
       }
       setLoading(false);
-      return; // no user → nothing else to fetch
+      return;
     }
 
     // ── Posts — separate try/catch so a failure here doesn't blank the profile ──
@@ -219,25 +243,46 @@ export default function Profile() {
       const pr = await fetch(`${API}/api/posts/user/${userId}`, { signal });
       if (pr.ok) setPosts(await pr.json());
     } catch (e) {
-      if (e.name !== 'AbortError') {
+      if (e.name !== "AbortError") {
         console.error("Failed to load posts:", e);
       }
-      // intentionally not setting `error` — show the profile, just without posts
     }
 
     setLoading(false);
   }, [userId, isOwn, stored]);
 
-  useEffect(() => { 
+  useEffect(() => {
     fetchData();
-    
     return () => {
-      // Cleanup: abort any in-flight requests
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
   }, [fetchData]);
+
+  const toggleFollow = useCallback(async () => {
+    if (!stored?.userid || !userId || followBusy) return;
+
+    setFollowBusy(true);
+    try {
+      const r = await fetch(`${API}/api/users/follow/${userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ follower_id: stored.userid }),
+      });
+      const data = await r.json();
+      if (r.ok) {
+        setIsFollowing(data.following);
+        setUser((u) => (u ? { ...u, followers: data.followers_count } : u));
+      } else {
+        console.error("Follow toggle error:", data.error);
+      }
+    } catch (e) {
+      console.error("Follow toggle failed:", e);
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [stored, userId, followBusy]);
 
   // ── Loading ──
   if (loading) {
@@ -284,7 +329,9 @@ export default function Profile() {
               {user.username?.[0]?.toUpperCase()}
             </div>
             {user.verified && (
-              <span className="verified-badge" title="حساب موثق">✓</span>
+              <span className="verified-badge">
+                <VerifiedIcon className="verified-badge-icon" />
+              </span>
             )}
           </div>
 
@@ -298,7 +345,9 @@ export default function Profile() {
                 <span className="chip chip--admin">مشرف</span>
               )}
               {user.verified && (
-                <span className="chip chip--verified">موثق ✓</span>
+                <span className="chip chip--verified">
+                  موثق <VerifiedIcon className="chip-icon" />
+                </span>
               )}
               {user.is_banned && (
                 <span className="chip chip--banned">محظور</span>
@@ -333,8 +382,12 @@ export default function Profile() {
                 </button>
               </>
             ) : (
-              <button className="btn-primary">
-                + متابعة
+              <button
+                className={isFollowing ? "btn-ghost" : "btn-primary"}
+                onClick={toggleFollow}
+                disabled={followBusy || !stored}
+              >
+                {isFollowing ? "إلغاء المتابعة" : "+ متابعة"}
               </button>
             )}
           </div>

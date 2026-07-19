@@ -6,7 +6,14 @@
         "points": 0,
         "role": "user",
         "verified": false,
-        "chats": {}
+        "chats": {},
+        "followers": {
+            "1": "2026-07-19T17:25:03.106926+00:00"
+        },
+        "lesson_progress": 0,
+        "following": {},
+        "Friends": [],
+        "profile_picture": ""
     },
     {
         "userid": 3,
@@ -15,7 +22,14 @@
         "points": 0,
         "role": "admin",
         "verified": true,
-        "chats": {}
+        "chats": {},
+        "followers": {
+            "1": "2026-07-19T17:26:04.321534+00:00"
+        },
+        "lesson_progress": 0,
+        "following": {},
+        "Friends": [],
+        "profile_picture": ""
     },
     {
         "userid": "1",
@@ -24,6 +38,14 @@
         "points": 5,
         "role": "owner",
         "verified": true,
-        "chats": {}
+        "chats": {},
+        "followers": {},
+        "lesson_progress": 0,
+        "following": {
+            "2": "2026-07-19T17:25:03.106926+00:00",
+            "3": "2026-07-19T17:26:04.321534+00:00"
+        },
+        "Friends": [],
+        "profile_picture": "https://storage.almaharat2.com/users_icon/Rakan/e8a7s6v6776as76tcyvs8sduasif1/profile_picture.jpg"
     }
 ]

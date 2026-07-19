@@ -34,6 +34,7 @@ import InWorkingPages from './Pages/Website/In_WorkingPages'
 import BlockedPosts from './Pages/Website/BlockedPosts'
 import RequestVerify from './Pages/sendrequest'
 import PostLink from './Pages/PostLink'
+import Dashboard from './studio.almaharat2.com/dashboard'
 
 function OldDomainPage() {
   return (
@@ -94,7 +95,7 @@ function ServerChecker({ children }) {
 
     checkHealth()
 
-    const interval = setInterval(checkHealth, 500)
+    const interval = setInterval(checkHealth, 20000)
 
     return () => clearInterval(interval)
   }, [])
@@ -162,6 +163,9 @@ export default function App() {
       <ServerChecker>
         <PageBlocker>
           <Routes>
+            {hostname === "studio.almaharat2.com" && (
+              <Route path="/dashboard/@:channelusername" element={<Dashboard />} />
+            )}
           <Route path="/Home" element={<Idont />} />
           <Route path="/" element={<Home />} />
           <Route path="/Login" element={<Login />} />
