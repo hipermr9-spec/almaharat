@@ -115,6 +115,10 @@
   color: #fff;
 }
 
+.avatar--image {
+  object-fit: cover;
+}
+
 .verified-badge {
   position: absolute;
   bottom: 2px;

@@ -37,6 +37,14 @@ const PALETTE = [
 const userColor = (name = "") =>
   PALETTE[(name.charCodeAt(0) || 0) % PALETTE.length];
 
+// Some profile_picture values are stored without a protocol
+// (e.g. "storage.almaharat2.com/..."), which the browser treats as a
+// relative path. Add https:// if it's missing one.
+const resolveImageUrl = (url = "") => {
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getStoredUser = () => {
   try {
@@ -214,22 +222,22 @@ export default function Profile() {
     setLoading(true);
     setError(null);
 
-    // ── User data (own profile from cookie, public profile from API) ──
+    // ── User data — always fetched fresh from the backend, even for
+    // your own profile. The cookie (`stored`) is only used to know WHO
+    // you are (userid) and to gate access; using it AS the profile data
+    // meant anything that changed since login (profile_picture, follow
+    // counts, points, etc.) never showed up until you logged out and in
+    // again. Fetching fresh keeps the profile in sync with real data.
     try {
-      if (isOwn && stored) {
-        setUser(stored);
-        setIsFollowing(false);
-      } else {
-        const viewerId = stored?.userid ?? "";
-        const r = await fetch(
-          `${API}/api/users/public/${userId}?viewer_id=${encodeURIComponent(viewerId)}`,
-          { signal }
-        );
-        if (!r.ok) throw new Error("المستخدم غير موجود");
-        const data = await r.json();
-        setUser(data);
-        setIsFollowing(!!data.is_following);
-      }
+      const viewerId = stored?.userid ?? "";
+      const r = await fetch(
+        `${API}/api/users/public/${userId}?viewer_id=${encodeURIComponent(viewerId)}`,
+        { signal }
+      );
+      if (!r.ok) throw new Error("المستخدم غير موجود");
+      const data = await r.json();
+      setUser(data);
+      setIsFollowing(!!data.is_following);
     } catch (e) {
       if (e.name !== "AbortError") {
         setError(e.message);
@@ -325,7 +333,25 @@ export default function Profile() {
 
           {/* Avatar */}
           <div className="avatar-wrap">
-            <div className="avatar" style={{ background: color }}>
+            {user.profile_picture ? (
+              <img
+                src={resolveImageUrl(user.profile_picture)}
+                alt={user.username}
+                className="avatar avatar--image"
+                onError={(e) => {
+                  // Broken/unreachable image URL — fall back to the letter avatar
+                  e.currentTarget.style.display = "none";
+                  e.currentTarget.nextSibling.style.display = "flex";
+                }}
+              />
+            ) : null}
+            <div
+              className="avatar"
+              style={{
+                background: color,
+                display: user.profile_picture ? "none" : "flex",
+              }}
+            >
               {user.username?.[0]?.toUpperCase()}
             </div>
             {user.verified && (

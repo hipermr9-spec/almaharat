@@ -37,7 +37,7 @@ app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
 ALLOWED_ORIGINS = [
     "https://www.almaharat2.com",
-    "https://storage.almaharat2.com"
+    "https://storage.almaharat2.com",
     "http://localhost:3000",
     "http://localhost:5173"
 ]
@@ -1041,8 +1041,8 @@ def show_password_token(userid, token):
 # =========================
 # ✅ Verification System
 # =========================
-FOLLOWERS_PATH             = os.path.join(DATA_DIR, 'followers.json')
-LESSON_PROGRESS_PATH       = os.path.join(DATA_DIR, 'lesson_progress.json')
+FOLLOWERS_PATH             = os.path.join(DATA_DIR, 'Accounts.json')
+LESSON_PROGRESS_PATH       = os.path.join(DATA_DIR, 'Accounts.json')
 VIOLATIONS_PATH            = os.path.join(DATA_DIR, 'violations.json')
 VERIFICATION_REQUESTS_PATH = os.path.join(DATA_DIR, 'verification_requests.json')
 
@@ -1056,12 +1056,8 @@ MIN_POINTS    = 50
 
 
 def _check_requirements(userid: str):
-    """
-    Run all 7 verification checks against the JSON data files.
-    Returns (result_dict, None) on success, (None, error_str) on failure.
-    """
     users = read_json(DB_PATH)
-    user  = next((u for u in users if u['userid'] == userid), None)
+    user  = next((u for u in users if str(u.get('userid')) == str(userid)), None)
     if not user:
         return None, "المستخدم غير موجود."
 
@@ -1069,17 +1065,23 @@ def _check_requirements(userid: str):
     emails    = read_json(EMAILS_PATH)
     has_email = any(str(e.get('userid')) == str(userid) for e in emails)
 
-    # FIX #3 — original code did `sum(1 for f in user ...)` where `user` is a dict.
-    #           Iterating over a dict yields its *keys* (strings like "userid",
-    #           "username", …), so `f.get('followers')` would raise AttributeError.
-    #           The follower count is already stored as an integer on the user object.
-    followers_count  = user.get('followers', 0)
-    has_10_followers = followers_count >= MIN_FOLLOWERS
+    # 2. Enough followers — followers is stored as a dict {follower_id: timestamp}
+    followers_raw     = user.get('followers', {})
+    followers_count   = len(followers_raw) if isinstance(followers_raw, dict) else (followers_raw or 0)
+    has_10_followers  = followers_count >= MIN_FOLLOWERS
 
     # 3. Active learner (completed lessons)
-    progress          = read_json(LESSON_PROGRESS_PATH)
-    completed_lessons = sum(1 for p in progress
-                            if p.get('userid') == userid and p.get('completed'))
+    # 3. Active learner (completed lessons)
+    progress = user.get("lesson_progress", [])
+
+    if isinstance(progress, int):
+        completed_lessons = progress
+    else:
+        completed_lessons = sum(
+            1 for p in progress
+            if p.get("completed")
+        )
+
     is_active_learner = completed_lessons >= MIN_LESSONS
 
     # 4. Enough points
@@ -1089,7 +1091,7 @@ def _check_requirements(userid: str):
     # 5. Positive interaction (no confirmed violations)
     violations           = read_json(VIOLATIONS_PATH)
     confirmed_violations = sum(1 for v in violations
-                               if v.get('userid') == userid and v.get('status') == 'confirmed')
+                               if str(v.get('userid')) == str(userid) and v.get('status') == 'confirmed')
     positive_interaction = confirmed_violations == 0
 
     # 6. Not banned
@@ -1097,7 +1099,7 @@ def _check_requirements(userid: str):
 
     # 7. No active violations
     active_count         = sum(1 for v in violations
-                               if v.get('userid') == userid and v.get('active', False))
+                               if str(v.get('userid')) == str(userid) and v.get('active', False))
     no_policy_violations = active_count == 0
 
     checks = {
@@ -1131,7 +1133,7 @@ def check_requirements():
         return jsonify({"error": "userid مطلوب"}), 400
 
     users = read_json(DB_PATH)
-    user  = next((u for u in users if u.get('userid') == userid), None)
+    user  = next((u for u in users if str(u.get('userid')) == str(userid)), None)
 
     if not user:
         return jsonify({"error": "المستخدم غير موجود"}), 404
@@ -1149,17 +1151,16 @@ def check_requirements():
 
     return jsonify(result), 200
 
-
 @app.route('/api/submit/verificationrequest/<string:user_id>', methods=['POST'])
 def submit_verification(user_id):
     data        = request.get_json() or {}
-    body_userid = (data.get('userid') or '').strip()
+    body_userid = str(data.get('userid') or '').strip()
 
-    if body_userid != user_id:
+    if body_userid != str(user_id):
         return jsonify({"error": "غير مصرح لكِ بتقديم هذا الطلب."}), 403
 
     users = read_json(DB_PATH)
-    user  = next((u for u in users if u['userid'] == user_id), None)
+    user  = next((u for u in users if str(u.get('userid')) == str(user_id)), None)
     if not user:
         return jsonify({"error": "المستخدم غير موجود."}), 404
 
@@ -1167,7 +1168,7 @@ def submit_verification(user_id):
         return jsonify({"error": "حسابكِ محقق بالفعل."}), 400
 
     ver_requests = read_json(VERIFICATION_REQUESTS_PATH)
-    if any(r['userid'] == user_id and r['status'] == 'pending' for r in ver_requests):
+    if any(str(r.get('userid')) == str(user_id) and r.get('status') == 'pending' for r in ver_requests):
         return jsonify({"error": "يوجد طلب تحقق قيد المراجعة بالفعل."}), 400
 
     result, err = _check_requirements(user_id)
@@ -1181,7 +1182,7 @@ def submit_verification(user_id):
 
     new_req = {
         "id":           str(uuid.uuid4()),
-        "userid":       user_id,
+        "userid":       str(user_id),
         "username":     user['username'],
         "status":       "pending",
         "submitted_at": datetime.now(timezone.utc).isoformat(),
@@ -1192,14 +1193,16 @@ def submit_verification(user_id):
     return jsonify({
         "message":    "تم إرسال طلب التحقق بنجاح! سيتم مراجعته خلال بضعة أيام.",
         "request_id": new_req['id'],
-        "userid":     user_id,
+        "userid":     str(user_id),
     }), 201
 
 
 @app.route('/api/admin/verificationrequests', methods=['GET'])
 @require_admin
 def get_verification_requests():
-    return jsonify(read_json(VERIFICATION_REQUESTS_PATH)), 200
+    data = read_json(VERIFICATION_REQUESTS_PATH)
+    pending = [r for r in data if r.get('status') == 'pending']
+    return jsonify(pending), 200
 
 
 @app.route('/api/admin/verificationrequests/<string:request_id>/approve', methods=['POST'])
@@ -1210,6 +1213,8 @@ def approve_verification(request_id):
         req = next((r for r in ver_requests if r['id'] == request_id), None)
         if not req:
             return jsonify({"error": "Request not found"}), 404
+        if req.get('status') != 'pending':
+            return jsonify({"error": "تمت مراجعة هذا الطلب بالفعل."}), 400
 
         req['status']      = 'approved'
         req['reviewed_at'] = datetime.now(timezone.utc).isoformat()
@@ -1235,6 +1240,8 @@ def reject_verification(request_id):
         req = next((r for r in ver_requests if r['id'] == request_id), None)
         if not req:
             return jsonify({"error": "Request not found"}), 404
+        if req.get('status') != 'pending':
+            return jsonify({"error": "تمت مراجعة هذا الطلب بالفعل."}), 400
 
         req['status']      = 'rejected'
         req['reviewed_at'] = datetime.now(timezone.utc).isoformat()

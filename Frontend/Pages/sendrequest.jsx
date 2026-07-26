@@ -7,12 +7,23 @@ const BASE =
     ? "http://localhost:5000"
     : "https://api.almaharat2.com";
 
+// Arabic labels for each requirement key returned by the backend's
+// _check_requirements(), so a failed submission can show exactly what's missing.
+const REQUIREMENT_LABELS = {
+  has_email:            "ربط بريد إلكتروني بالحساب",
+  has_10_followers:     "الحصول على 10 متابعين على الأقل",
+  is_active_learner:    "إكمال 5 دروس على الأقل",
+  has_enough_points:    "الحصول على 50 نقطة على الأقل",
+  positive_interaction: "عدم وجود مخالفات مؤكدة",
+  follows_policies:     "عدم حظر الحساب",
+  no_policy_violations: "عدم وجود مخالفات نشطة",
+};
+
 export default function SendRequest({ userData }) {
-  const [email, setEmail] = useState("");
-  const [pageMessage, setPageMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
   const [user, setUser] = useState(null);
+  const [status, setStatus] = useState("checking"); // checking | idle | already | pending_check | submitting | sent | error
+  const [pageMessage, setPageMessage] = useState("");
+  const [failedChecks, setFailedChecks] = useState([]);
 
   useEffect(() => {
     const stored = Cookies.get("user") || Cookies.get("DONT-SHARE-THAT-COOKIE");
@@ -20,125 +31,166 @@ export default function SendRequest({ userData }) {
     setUser(currentUser);
 
     if (!currentUser) {
+      setStatus("error");
       setPageMessage("لم يتم العثور على المستخدم. الرجاء تسجيل الدخول.");
       return;
     }
 
-    if (currentUser.email) {
-      setEmail(currentUser.email);
-      setPageMessage("");
-      return;
-    }
-
-    const fetchSavedEmail = async () => {
+    // Check current verification status / requirements up front, so the
+    // page can show "already verified" or a list of missing requirements
+    // before the person even tries to submit.
+    const checkStatus = async () => {
       try {
-        const res = await fetch(`${BASE}/api/get-settings/${currentUser.userid}`);
+        const res = await fetch(
+          `${BASE}/api/checkrequirements?userid=${encodeURIComponent(currentUser.userid)}`
+        );
         const data = await res.json();
-        if (res.ok) {
-          setEmail(data.email || "");
-          setPageMessage(data.email ? "" : "لا يوجد بريد مرتبط بحسابك. أضفه في الإعدادات أولاً.");
-        } else {
-          setPageMessage(data.error || "فشل تحميل البريد المرتبط.");
+
+        if (!res.ok) {
+          setStatus("error");
+          setPageMessage(data.error || "تعذر التحقق من الحالة.");
+          return;
         }
+
+        if (data.already_verified) {
+          setStatus("already");
+          setPageMessage(data.message || "حسابك موثق بالفعل ✅");
+          return;
+        }
+
+        if (!data.requirements_met) {
+          const missing = Object.entries(data.checks || {})
+            .filter(([, ok]) => !ok)
+            .map(([key]) => REQUIREMENT_LABELS[key] || key);
+          setFailedChecks(missing);
+          setStatus("pending_check");
+          return;
+        }
+
+        setStatus("idle");
       } catch (err) {
         console.error(err);
-        setPageMessage("تعذر الاتصال بالخادم لتحميل البريد.");
+        setStatus("error");
+        setPageMessage("تعذر الاتصال بالخادم.");
       }
     };
 
-    fetchSavedEmail();
+    checkStatus();
   }, [userData]);
 
   const sendRequest = async () => {
-    if (!email) {
-      setPageMessage("لا يوجد بريد إلكتروني مرتبط. أضفه في الإعدادات أولاً.");
-      return;
-    }
+    if (!user?.userid) return;
 
-    setLoading(true);
-
-    // Helper function to escape HTML special characters
-    const escapeHtml = (str) => {
-      if (!str) return '';
-      const div = document.createElement('div');
-      div.textContent = str;
-      return div.innerHTML;
-    };
-
-    const username = escapeHtml(user?.username || userData?.username || "User");
-    const escapedEmail = escapeHtml(email);
-
-    const message = {
-      title: "طلب جديد من " + (user?.username || userData?.username || "User"),
-      content:
-        "طلب جديد للتحقق. البريد: " +
-        email +
-        " - تم الإرسال من صفحة التحقق.",
-      styleandhtml: `
-        <div style="color:#333;font-family:Arial">
-          <h2>طلب تحقق جديد</h2>
-          <p>المستخدم: ${username}</p>
-          <p>البريد: ${escapedEmail}</p>
-        </div>
-      `,
-      useremail: email,
-    };
+    setStatus("submitting");
+    setPageMessage("");
 
     try {
-      const res = await fetch(`${BASE}/api/sendemail`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(message),
-      });
+      const res = await fetch(
+        `${BASE}/api/submit/verificationrequest/${encodeURIComponent(user.userid)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userid: user.userid }),
+        }
+      );
 
       const data = await res.json();
 
       if (res.ok) {
-        setSent(true);
-        setPageMessage("تم إرسال طلبك بنجاح ✅ سيتم الرد خلال يومين.");
-      } else {
-        setPageMessage(data.error || "حدث خطأ أثناء الإرسال.");
+        setStatus("sent");
+        setPageMessage(data.message || "تم إرسال طلب التحقق بنجاح ✅");
+        return;
       }
+
+      // Backend re-validates requirements at submit time too — if something
+      // changed between the initial check and now, show what's missing.
+      if (data.checks) {
+        const missing = Object.entries(data.checks)
+          .filter(([, ok]) => !ok)
+          .map(([key]) => REQUIREMENT_LABELS[key] || key);
+        setFailedChecks(missing);
+        setStatus("pending_check");
+        return;
+      }
+
+      setStatus("idle");
+      setPageMessage(data.error || "حدث خطأ أثناء إرسال الطلب.");
     } catch (err) {
       console.error(err);
+      setStatus("idle");
       setPageMessage("تعذر الاتصال بالخادم.");
-    } finally {
-      setLoading(false);
     }
   };
 
+  // ── Render states ──────────────────────────────────────────────
+  if (status === "checking") {
+    return (
+      <div className="sendrequest-container">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="sendrequest-container">
+        <h1 className="sendrequest-title">طلب التحقق</h1>
+        <p className="sendrequest-message">{pageMessage}</p>
+      </div>
+    );
+  }
+
+  if (status === "already") {
+    return (
+      <div className="sendrequest-container">
+        <h1 className="sendrequest-title">حساب موثق</h1>
+        <p className="sendrequest-desc">{pageMessage}</p>
+      </div>
+    );
+  }
+
+  if (status === "sent") {
+    return (
+      <div className="sendrequest-container">
+        <h1 className="sendrequest-title">تم إرسال الطلب</h1>
+        <p className="sendrequest-desc">{pageMessage}</p>
+      </div>
+    );
+  }
+
+  if (status === "pending_check") {
+    return (
+      <div className="sendrequest-container">
+        <h1 className="sendrequest-title">طلب التحقق</h1>
+        <p className="sendrequest-desc">
+          لا تستوفي جميع المتطلبات اللازمة للتحقق بعد. المتطلبات الناقصة:
+        </p>
+        <ul className="sendrequest-requirements">
+          {failedChecks.map((label) => (
+            <li key={label}>{label}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  // status === "idle" | "submitting"
   return (
     <div className="sendrequest-container">
-      {!sent ? (
-        <>
-          <h1 className="sendrequest-title">طلب التحقق</h1>
+      <h1 className="sendrequest-title">طلب التحقق</h1>
+      <p className="sendrequest-desc">
+        أنتِ تستوفين جميع المتطلبات. يمكنكِ الآن إرسال طلب التحقق إلى الإدارة.
+      </p>
 
-          <p className="sendrequest-desc">
-            إرسال طلب التحقق إلى الإدارة
-          </p>
-
-          {loading ? (
-            <div className="spinner"></div>
-          ) : (
-            <button className="sendrequest-btn" onClick={sendRequest}>
-              إرسال الطلب
-            </button>
-          )}
-
-          {pageMessage && (
-            <p className="sendrequest-message">{pageMessage}</p>
-          )}
-        </>
+      {status === "submitting" ? (
+        <div className="spinner"></div>
       ) : (
-        <>
-          <h1 className="sendrequest-title">تم إرسال الطلب</h1>
-          <p className="sendrequest-desc">
-            شكراً لك، سيتم مراجعة طلبك خلال من يوم إلى يومين.
-          </p>
-        </>
+        <button className="sendrequest-btn" onClick={sendRequest}>
+          إرسال الطلب
+        </button>
       )}
+
+      {pageMessage && <p className="sendrequest-message">{pageMessage}</p>}
     </div>
   );
 }

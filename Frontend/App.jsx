@@ -35,6 +35,7 @@ import BlockedPosts from './Pages/Website/BlockedPosts'
 import RequestVerify from './Pages/sendrequest'
 import PostLink from './Pages/PostLink'
 import Dashboard from './studio.almaharat2.com/dashboard'
+import Pending from './Pages/Admin/pending_requests'
 
 function OldDomainPage() {
   return (
@@ -178,6 +179,7 @@ export default function App() {
           <Route path="/Enrichments" element={<EnrichmentPage />} />
           <Route path="/Enrichments/:id" element={<EnrichmentPreview />} />
           <Route path="/Admin/Enrichments" element={<Enrichments />} />
+          <Route path="/Admin/Requests/Pending" element={<Pending />} />
           <Route path="/Admin/Enrichments/Add" element={<Addenrichments />} />
           <Route path="/Terms" element={<TermsOfCondition />} />
           <Route path="/Posts" element={<Posts />} />
