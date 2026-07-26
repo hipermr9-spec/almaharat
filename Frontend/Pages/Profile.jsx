@@ -26,7 +26,7 @@ import Cookies from "js-cookie";
 import "./Profile.css";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
-const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+const API = "https://api.almaharat2.com";
 
 // One color per first letter so the same user always gets the same hue
 const PALETTE = [
