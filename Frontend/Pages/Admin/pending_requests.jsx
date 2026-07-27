@@ -16,6 +16,42 @@ import React, { useEffect, useState, useCallback } from "react";
 const API_BASE = "/api/admin/verificationrequests";
 const ADMIN_TOKEN = "changeme"; // must match ADMIN_TOKEN on your Flask server
 
+// Consistent "random" color per username, so the same person always gets
+// the same fallback avatar color.
+const AVATAR_COLORS = [
+  "#5b8def", "#2fb673", "#e5595f", "#e5a15b", "#a06be0",
+  "#3fb0c9", "#e05b9c", "#8bbf3f", "#e5c25b", "#6b7ae0",
+];
+function colorForName(name) {
+  const str = (name || "?").toString();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// Safely reads a response body as JSON. If the server returned HTML (a 404
+// page, a login redirect, a 500 error page, etc.) this throws a clear error
+// instead of letting `.json()` blow up with "Unexpected token '<'".
+async function readJsonSafely(res) {
+  const raw = await res.text();
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const looksLikeHtml = /^\s*</.test(raw);
+    throw new Error(
+      looksLikeHtml
+        ? `الخادم أعاد صفحة HTML بدل JSON (كود ${res.status}). تأكد أن رابط الـ API صحيح وأن الجلسة مسجّلة دخول.`
+        : `استجابة غير متوقعة من الخادم (كود ${res.status}).`
+    );
+  }
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error("تعذّر قراءة استجابة الخادم كـ JSON.");
+  }
+}
+
 export default function VerificationRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,11 +67,14 @@ export default function VerificationRequests() {
       const res = await fetch(API_BASE, {
         credentials: "include",
         headers: {
+          Accept: "application/json",
           "X-Admin-Token": ADMIN_TOKEN,
         },
       });
-      if (!res.ok) throw new Error(`فشل التحميل (${res.status})`);
-      const data = await res.json();
+      const data = await readJsonSafely(res);
+      if (!res.ok) {
+        throw new Error(data?.error || `فشل التحميل (${res.status})`);
+      }
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || "تعذر تحميل الطلبات");
@@ -62,10 +101,11 @@ export default function VerificationRequests() {
         method: "POST",
         credentials: "include",
         headers: {
+          Accept: "application/json",
           "X-Admin-Token": ADMIN_TOKEN,
         },
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await readJsonSafely(res).catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || "حدث خطأ أثناء تنفيذ العملية");
       }
@@ -138,20 +178,17 @@ export default function VerificationRequests() {
           {requests.map((req) => {
             const action = pendingAction[req.id];
             const isBusy = Boolean(action);
+            const displayName = req.username || `مستخدم #${req.userid}`;
             return (
               <li className="vr-card" key={req.id}>
                 <div className="vr-card-main">
-                  <div className="vr-avatar" aria-hidden="true">
-                    {(req.username || req.userid || "?")
-                      .toString()
-                      .trim()
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
+                  <Avatar
+                    name={displayName}
+                    src={req.profile_picture}
+                    userId={req.userid}
+                  />
                   <div className="vr-info">
-                    <p className="vr-name">
-                      {req.username || `مستخدم #${req.userid}`}
-                    </p>
+                    <p className="vr-name">{displayName}</p>
                     <p className="vr-meta">
                       رقم المستخدم: {req.userid}
                       {req.submitted_at ? ` · ${formatDate(req.submitted_at)}` : ""}
@@ -187,6 +224,54 @@ export default function VerificationRequests() {
           {toast.message}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Profile avatar: shows the user's picture when `profile_picture` is a
+ * non-empty path/URL. If it's missing/empty, or the image fails to load,
+ * falls back to a colored circle with the first character of the username.
+ * Clicking it navigates to /<userId>.
+ */
+function Avatar({ name, src, userId }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const hasImage = Boolean(src) && !imgFailed;
+  const initial = (name || "?").toString().trim().charAt(0).toUpperCase();
+
+  const goToProfile = () => {
+    if (userId === undefined || userId === null) return;
+    window.location.href = `/${userId}`;
+  };
+
+  const commonProps = {
+    className: `vr-avatar${hasImage ? " vr-avatar-img" : ""} vr-avatar-clickable`,
+    onClick: goToProfile,
+    role: "button",
+    tabIndex: 0,
+    "aria-label": `عرض الملف الشخصي لـ ${name}`,
+    onKeyDown: (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        goToProfile();
+      }
+    },
+  };
+
+  if (hasImage) {
+    return (
+      <img
+        {...commonProps}
+        src={src}
+        alt={name}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div {...commonProps} style={{ background: colorForName(name) }}>
+      {initial}
     </div>
   );
 }
@@ -373,13 +458,30 @@ function VRStyles() {
         width: 42px;
         height: 42px;
         border-radius: 50%;
-        background: linear-gradient(135deg, var(--vr-accent), #7aa2f7);
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 700;
         font-size: 16px;
         color: #0f1115;
+        object-fit: cover;
+      }
+      .vr-avatar-img {
+        color: transparent;
+        background: var(--vr-surface-2);
+        border: 1px solid var(--vr-border);
+      }
+      .vr-avatar-clickable {
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .vr-avatar-clickable:hover {
+        transform: scale(1.06);
+        box-shadow: 0 0 0 3px rgba(91, 141, 239, 0.35);
+      }
+      .vr-avatar-clickable:focus-visible {
+        outline: 2px solid var(--vr-accent);
+        outline-offset: 2px;
       }
       .vr-info { min-width: 0; }
       .vr-name {

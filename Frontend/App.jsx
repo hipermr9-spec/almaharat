@@ -63,7 +63,7 @@ function OldDomainPage() {
           marginTop: '10px'
         }}
       >
-        almaharat2.com
+        www.almaharat2.com
       </a>
     </div>
   )
