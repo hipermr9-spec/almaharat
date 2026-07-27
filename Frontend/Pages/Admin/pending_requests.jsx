@@ -193,6 +193,7 @@ export default function VerificationRequests() {
                       رقم المستخدم: {req.userid}
                       {req.submitted_at ? ` · ${formatDate(req.submitted_at)}` : ""}
                     </p>
+                    {req.email && <p className="vr-email">{req.email}</p>}
                     {req.note && <p className="vr-note">{req.note}</p>}
                   </div>
                 </div>
@@ -496,6 +497,15 @@ function VRStyles() {
         margin: 0;
         font-size: 12.5px;
         color: var(--vr-text-dim);
+      }
+      .vr-email {
+        margin: 3px 0 0;
+        font-size: 12.5px;
+        color: var(--vr-accent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 320px;
       }
       .vr-note {
         margin: 6px 0 0;

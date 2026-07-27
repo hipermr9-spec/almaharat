@@ -1180,10 +1180,18 @@ def submit_verification(user_id):
             "checks": result['checks'],
         }), 400
 
+    emails = read_json(EMAILS_PATH)
+    email_record = next(
+        (e for e in emails if str(e.get('userid')) == str(user_id)),
+        None
+    )
+    user_email = email_record.get('email', '') if email_record else ''
+
     new_req = {
         "id":           str(uuid.uuid4()),
         "userid":       str(user_id),
         "username":     user['username'],
+        "email":        user_email,
         "status":       "pending",
         "submitted_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -1202,6 +1210,15 @@ def submit_verification(user_id):
 def get_verification_requests():
     data = read_json(VERIFICATION_REQUESTS_PATH)
     pending = [r for r in data if r.get('status') == 'pending']
+
+    emails = read_json(EMAILS_PATH)
+    for r in pending:
+        email_record = next(
+            (e for e in emails if str(e.get('userid')) == str(r.get('userid'))),
+            None
+        )
+        r['email'] = email_record.get('email', '') if email_record else ''
+
     return jsonify(pending), 200
 
 
