@@ -13,6 +13,7 @@
         "lesson_progress": 0,
         "following": {},
         "Friends": [],
+        "nofication": 0,
         "profile_picture": ""
     },
     {
@@ -29,6 +30,7 @@
         "lesson_progress": 0,
         "following": {},
         "Friends": [],
+        "nofication": 0,
         "profile_picture": ""
     },
     {
@@ -298,6 +300,7 @@
             "3": "2026-07-19T17:26:04.321534+00:00"
         },
         "Friends": [],
+        "nofication": 0,
         "profile_picture": "https://storage.almaharat2.com/users_icon/Rakan/e8a7s6v6776as76tcyvs8sduasif1/profile_picture.jpg"
     },
     {
@@ -324,8 +327,19 @@
         "lesson_progress": 8,
         "following": {},
         "Friends": [],
+        "nofication": 0,
         "profile_picture": "",
         "twoFA": false,
-        "mailEnabled": true
+        "mailEnabled": true,
+        "notifications": [
+            {
+                "id": "f2d605fd-33e3-47ae-b6dd-99d422e985ae",
+                "type": "verification",
+                "title": "تم قبول طلب التحقق",
+                "message": "تهانينا! تم قبول طلب التحقق الخاص بك.",
+                "read": true,
+                "created_at": "2026-07-27T22:09:39.104827+00:00"
+            }
+        ]
     }
 ]

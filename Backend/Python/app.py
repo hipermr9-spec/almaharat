@@ -98,6 +98,9 @@ MESSAGES = [
 app.config['UPLOAD_FOLDER'] = IMAGES_DIR
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf', 'mp4', 'mp3'}
 
+ADMIN_SECRET = "changeme"
+OWNER_SECRET = "OWNER_TOKEN_2026"
+
 # =========================
 # 🔧 JSON Helpers
 # =========================
@@ -176,6 +179,30 @@ def require_owner(f):
         return jsonify({"error": "Unauthorized"}), 403
     return decorated
 
+def require_admin_or_owner(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        admin_header = request.headers.get("X-Admin-Token")
+        owner_header = request.headers.get("X-Owner-Token")
+
+        admin_secret = os.environ.get("ADMIN_TOKEN")
+        owner_secret = os.environ.get("OWNER_TOKEN")
+
+        print("Admin Header :", admin_header)
+        print("Admin Secret :", admin_secret)
+        print("Owner Header :", owner_header)
+        print("Owner Secret :", owner_secret)
+
+        if admin_secret and hmac.compare_digest(admin_header or "", admin_secret):
+            return f(*args, **kwargs)
+
+        if owner_secret and hmac.compare_digest(owner_header or "", owner_secret):
+            return f(*args, **kwargs)
+
+        return jsonify({"error": "Forbidden"}), 403
+
+    return decorated
+
 # =========================
 # 🖼️ Static uploads
 # =========================
@@ -214,6 +241,7 @@ def register():
         "lesson_progress": 0,
         "following": {},
         "Friends": [],
+        "notification": [],
         "profile_picture": ""
     }
     accounts.append(new_user)
@@ -745,22 +773,81 @@ def add_post():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def send_notification(userid, title, message):
+    users = read_json(DB_PATH)
+
+    for user in users:
+        if str(user.get("userid")) == str(userid):
+            if "notifications" not in user:
+                user["notifications"] = []
+
+            user["notifications"].append({
+                "id": str(uuid.uuid4()),
+                "type": "post",
+                "title": title,
+                "message": message,
+                "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+
+            break
+
+    write_json(DB_PATH, users)
+
 @app.route('/api/posts/<string:post_id>/like', methods=['POST'])
 def like_post(post_id):
     try:
         userid = (request.get_json() or {}).get('userid', '').strip()
-        if not userid: return jsonify({"error": "userid required"}), 400
+
+        if not userid:
+            return jsonify({"error": "userid required"}), 400
+
         posts = read_json(POSTS_PATH)
-        post  = next((p for p in posts if p['id'] == post_id), None)
-        if not post: return jsonify({"error": "Post not found"}), 404
+        post = next((p for p in posts if p['id'] == post_id), None)
+
+        if not post:
+            return jsonify({"error": "Post not found"}), 404
+
         if userid in post['likes']:
             post['likes'].remove(userid)
+
         else:
             post['likes'].append(userid)
+
             if userid in post['dislikes']:
                 post['dislikes'].remove(userid)
+
+            # إرسال إشعار لصاحب البوست
+            if str(userid) != str(post['userid']):
+                users = read_json(DB_PATH)
+
+                for user in users:
+                    if str(user.get('userid')) == str(post['userid']):
+
+                        if 'notifications' not in user:
+                            user['notifications'] = []
+
+                        user['notifications'].append({
+                            "id": str(uuid.uuid4()),
+                            "type": "like",
+                            "title": "إعجاب جديد",
+                            "message": "قام شخص بالإعجاب بمنشورك.",
+                            "post_id": post_id,
+                            "read": False,
+                            "created_at": datetime.now(timezone.utc).isoformat()
+                        })
+
+                        break
+
+                write_json(DB_PATH, users)
+
         write_json(POSTS_PATH, posts)
-        return jsonify({"likes": len(post['likes']), "dislikes": len(post['dislikes'])}), 200
+
+        return jsonify({
+            "likes": len(post['likes']),
+            "dislikes": len(post['dislikes'])
+        }), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -786,20 +873,66 @@ def dislike_post(post_id):
 @app.route('/api/posts/<string:post_id>/comment', methods=['POST'])
 def comment_on_post(post_id):
     try:
-        data     = request.get_json() or {}
-        userid   = (data.get('userid')   or '').strip()
+        data = request.get_json() or {}
+
+        userid = (data.get('userid') or '').strip()
         username = (data.get('username') or '').strip()
-        text     = (data.get('text')     or '').strip()
-        if not userid or not username: return jsonify({"error": "userid and username required"}), 400
-        if not text:                   return jsonify({"error": "comment text required"}), 400
+        text = (data.get('text') or '').strip()
+
+        if not userid or not username:
+            return jsonify({"error": "userid and username required"}), 400
+
+        if not text:
+            return jsonify({"error": "comment text required"}), 400
+
         posts = read_json(POSTS_PATH)
-        post  = next((p for p in posts if p['id'] == post_id), None)
-        if not post: return jsonify({"error": "Post not found"}), 404
-        comment = {"id": str(uuid.uuid4()), "userid": userid, "username": username,
-                   "text": text, "createdAt": datetime.now(timezone.utc).isoformat()}
+        post = next((p for p in posts if p['id'] == post_id), None)
+
+        if not post:
+            return jsonify({"error": "Post not found"}), 404
+
+        comment = {
+            "id": str(uuid.uuid4()),
+            "userid": userid,
+            "username": username,
+            "text": text,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+
         post['comments'].append(comment)
+
+        # إرسال إشعار لصاحب البوست
+        if str(userid) != str(post['userid']):
+
+            users = read_json(DB_PATH)
+
+            for user in users:
+                if str(user.get('userid')) == str(post['userid']):
+
+                    if 'notifications' not in user:
+                        user['notifications'] = []
+
+                    user['notifications'].append({
+                        "id": str(uuid.uuid4()),
+                        "type": "comment",
+                        "title": "تعليق جديد",
+                        "message": f"{username} علق على منشورك: {text}",
+                        "post_id": post_id,
+                        "read": False,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    })
+
+                    break
+
+            write_json(DB_PATH, users)
+
         write_json(POSTS_PATH, posts)
-        return jsonify({"message": "Comment added", "comment": comment}), 201
+
+        return jsonify({
+            "message": "Comment added",
+            "comment": comment
+        }), 201
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1215,17 +1348,20 @@ def submit_verification(user_id):
 
 
 @app.route('/api/admin/verificationrequests', methods=['GET'])
-@require_admin
+@require_admin_or_owner
 def get_verification_requests():
     data = read_json(VERIFICATION_REQUESTS_PATH)
+
     pending = [r for r in data if r.get('status') == 'pending']
 
     emails = read_json(EMAILS_PATH)
+
     for r in pending:
         email_record = next(
             (e for e in emails if str(e.get('userid')) == str(r.get('userid'))),
             None
         )
+
         r['email'] = email_record.get('email', '') if email_record else ''
 
     return jsonify(pending), 200
@@ -1237,23 +1373,41 @@ def approve_verification(request_id):
     try:
         ver_requests = read_json(VERIFICATION_REQUESTS_PATH)
         req = next((r for r in ver_requests if r['id'] == request_id), None)
+
         if not req:
             return jsonify({"error": "Request not found"}), 404
+
         if req.get('status') != 'pending':
             return jsonify({"error": "تمت مراجعة هذا الطلب بالفعل."}), 400
 
-        req['status']      = 'approved'
+        req['status'] = 'approved'
         req['reviewed_at'] = datetime.now(timezone.utc).isoformat()
         write_json(VERIFICATION_REQUESTS_PATH, ver_requests)
 
         users = read_json(DB_PATH)
+
         for user in users:
-            if user['userid'] == req['userid']:
+            if str(user['userid']) == str(req['userid']):
                 user['verified'] = True
+
+                if 'notifications' not in user:
+                    user['notifications'] = []
+
+                user['notifications'].append({
+                    "id": str(uuid.uuid4()),
+                    "type": "verification",
+                    "title": "تم قبول طلب التحقق",
+                    "message": "تهانينا! تم قبول طلب التحقق الخاص بك.",
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+
                 break
+
         write_json(DB_PATH, users)
 
         return jsonify({"message": "تم قبول طلب التحقق وتحديث حالة المستخدم."}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1264,16 +1418,40 @@ def reject_verification(request_id):
     try:
         ver_requests = read_json(VERIFICATION_REQUESTS_PATH)
         req = next((r for r in ver_requests if r['id'] == request_id), None)
+
         if not req:
             return jsonify({"error": "Request not found"}), 404
+
         if req.get('status') != 'pending':
             return jsonify({"error": "تمت مراجعة هذا الطلب بالفعل."}), 400
 
-        req['status']      = 'rejected'
+        req['status'] = 'rejected'
         req['reviewed_at'] = datetime.now(timezone.utc).isoformat()
         write_json(VERIFICATION_REQUESTS_PATH, ver_requests)
 
+        users = read_json(DB_PATH)
+
+        for user in users:
+            if str(user['userid']) == str(req['userid']):
+
+                if 'notifications' not in user:
+                    user['notifications'] = []
+
+                user['notifications'].append({
+                    "id": str(uuid.uuid4()),
+                    "type": "verification",
+                    "title": "تم رفض طلب التحقق",
+                    "message": "للأسف تم رفض طلب التحقق الخاص بك.",
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+
+                break
+
+        write_json(DB_PATH, users)
+
         return jsonify({"message": "تم رفض طلب التحقق."}), 200
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1646,47 +1824,75 @@ def get_public_user(userid):
 def toggle_follow_user(userid):
     try:
         data = request.get_json() or {}
+
         follower_id = str(data.get("follower_id") or session.get("userid") or "").strip()
-        target_id   = str(userid)
+        target_id = str(userid)
 
         if not follower_id:
             return jsonify({"error": "follower_id مطلوب"}), 400
+
         if follower_id == target_id:
             return jsonify({"error": "لا يمكنك متابعة نفسك"}), 400
 
         users = read_json(DB_PATH)
-        target_user   = next((u for u in users if str(u.get("userid")) == target_id), None)
+
+        target_user = next((u for u in users if str(u.get("userid")) == target_id), None)
         follower_user = next((u for u in users if str(u.get("userid")) == follower_id), None)
 
         if not target_user:
             return jsonify({"error": "المستخدم غير موجود"}), 404
+
         if not follower_user:
             return jsonify({"error": "حساب المتابع غير موجود"}), 404
 
-        # Normalize in case either field is missing or was previously an int/list
+
         if not isinstance(target_user.get("followers"), dict):
             target_user["followers"] = {}
+
         if not isinstance(follower_user.get("following"), dict):
             follower_user["following"] = {}
 
+
         now = datetime.now(timezone.utc).isoformat()
+
         already_following = follower_id in target_user["followers"]
+
 
         if already_following:
             target_user["followers"].pop(follower_id, None)
             follower_user["following"].pop(target_id, None)
+
             now_following = False
+
         else:
             target_user["followers"][follower_id] = now
             follower_user["following"][target_id] = now
+
             now_following = True
+
+            # إرسال إشعار عند المتابعة فقط
+            if "notifications" not in target_user:
+                target_user["notifications"] = []
+
+            target_user["notifications"].append({
+                "id": str(uuid.uuid4()),
+                "type": "follow",
+                "title": "متابع جديد",
+                "message": f"{follower_user['username']} بدأ بمتابعتك.",
+                "read": False,
+                "created_at": now
+            })
+
 
         write_json(DB_PATH, users)
 
+
         return jsonify({
-            "following":       now_following,
+            "following": now_following,
             "followers_count": len(target_user["followers"])
         }), 200
+
+
     except Exception as e:
         print("FOLLOW TOGGLE ERROR:", e)
         return jsonify({"error": str(e)}), 500
@@ -1733,7 +1939,127 @@ def api_owner_unblock_post(post_id):
         return jsonify({"message": "unblocked", "post": post}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
+@app.route('/api/notifications/get/<string:userid>', methods=['GET'])
+def get_notifications(userid):
+    try:
+        users = read_json(DB_PATH)
+
+        user = next(
+            (u for u in users if str(u.get("userid")) == str(userid)),
+            None
+        )
+
+        if not user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
+
+        return jsonify(user.get("notifications", [])), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/notifications/unread_count", methods=["GET"])
+def unread_notifications_count():
+    userid = session.get("userid")
+
+    users = read_json(DB_PATH)
+    user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
+
+    if not user:
+        return jsonify({"count": 0}), 200
+
+    notifications = user.get("notifications", [])
+
+    count = sum(1 for n in notifications if not n.get("read", False))
+
+    return jsonify({"count": count}), 200
+
+# =========================
+# Read All Notifications
+# =========================
+@app.route("/api/notifications/read_all", methods=["POST"])
+def read_all_notifications():
+    userid = request.cookies.get("userid")
+
+    users = read_json(DB_PATH)
+
+    for user in users:
+        if str(user.get("userid")) == str(userid):
+            for notification in user.get("notifications", []):
+                notification["read"] = True
+            write_json(DB_PATH, users)
+            return jsonify({"success": True}), 200
+
+    return jsonify({"error": "User not found"}), 404
+
+
+# =========================
+# Delete Notification
+# =========================
+@app.route("/api/notifications/delete/<notification_id>", methods=["DELETE"])
+def delete_notification(notification_id):
+    userid = request.cookies.get("userid")
+
+    users = read_json(DB_PATH)
+
+    for user in users:
+        if str(user.get("userid")) == str(userid):
+            notifications = user.get("notifications", [])
+
+            new_notifications = [
+                n for n in notifications
+                if str(n.get("id")) != str(notification_id)
+            ]
+
+            if len(new_notifications) == len(notifications):
+                return jsonify({"error": "Notification not found"}), 404
+
+            user["notifications"] = new_notifications
+            write_json(DB_PATH, users)
+            return jsonify({"success": True}), 200
+
+    return jsonify({"error": "User not found"}), 404
+
+
+# =========================
+# Read Notification
+# =========================
+@app.route("/api/notifications/read/<notification_id>", methods=["POST"])
+def read_notification(notification_id):
+    userid = request.cookies.get("userid")
+
+    users = read_json(DB_PATH)
+
+    for user in users:
+        if str(user.get("userid")) == str(userid):
+            for notification in user.get("notifications", []):
+                if str(notification.get("id")) == str(notification_id):
+                    notification["read"] = True
+                    write_json(DB_PATH, users)
+                    return jsonify({"success": True}), 200
+
+            return jsonify({"error": "Notification not found"}), 404
+
+    return jsonify({"error": "User not found"}), 404
+
+
+# =========================
+# Delete All Notifications
+# =========================
+@app.route("/api/notifications/delete_all", methods=["DELETE"])
+def delete_all_notifications():
+    userid = request.cookies.get("userid")
+
+    users = read_json(DB_PATH)
+
+    for user in users:
+        if str(user.get("userid")) == str(userid):
+            user["notifications"] = []
+            write_json(DB_PATH, users)
+            return jsonify({"success": True}), 200
+
+    return jsonify({"error": "User not found"}), 404
+
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

@@ -36,6 +36,7 @@ import RequestVerify from './Pages/sendrequest'
 import PostLink from './Pages/PostLink'
 import Dashboard from './studio.almaharat2.com/dashboard'
 import Pending from './Pages/Admin/pending_requests'
+import Notifications from './Pages/notifications'
 
 function OldDomainPage() {
   return (
@@ -206,6 +207,7 @@ export default function App() {
           <Route path="/Owner/Working/Pages" element={<InWorkingPages />} />
           <Route path="/Owner/Blocked/Posts" element={<BlockedPosts />} />
           <Route path="/Send/Verify/Request" element={<RequestVerify />} />
+          <Route path="/Notifications" element={<Notifications />} />
           <Route path="*" element={<Error404 />} />
           </Routes>
         </PageBlocker>

@@ -54,7 +54,7 @@ useEffect(() => {
   const fetchRequirements = async () => {
     try {
       const res = await fetch(
-        `https://api.almaharat2.com/api/checkrequirements?userid=${encodeURIComponent(userid)}`,
+        `https://localhost:5000/api/checkrequirements?userid=${encodeURIComponent(userid)}`,
         {
           method: "GET",
         }

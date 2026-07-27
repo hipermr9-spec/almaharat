@@ -13,8 +13,9 @@ import React, { useEffect, useState, useCallback } from "react";
  * file has no external stylesheet dependency.
  */
 
-const API_BASE = "/api/admin/verificationrequests";
+const API_BASE = "http://127.0.0.1:5000/api/admin/verificationrequests";
 const ADMIN_TOKEN = "changeme"; // must match ADMIN_TOKEN on your Flask server
+const OWNER_TOKEN = "OWNER_TOKEN_2026"; // must match ADMIN_TOKEN on your Flask server
 
 // Consistent "random" color per username, so the same person always gets
 // the same fallback avatar color.
@@ -69,6 +70,7 @@ export default function VerificationRequests() {
         headers: {
           Accept: "application/json",
           "X-Admin-Token": ADMIN_TOKEN,
+          "X-Owner-Token": OWNER_TOKEN,
         },
       });
       const data = await readJsonSafely(res);
@@ -103,6 +105,7 @@ export default function VerificationRequests() {
         headers: {
           Accept: "application/json",
           "X-Admin-Token": ADMIN_TOKEN,
+          "X-Owner-Token": OWNER_TOKEN,
         },
       });
       const data = await readJsonSafely(res).catch(() => ({}));

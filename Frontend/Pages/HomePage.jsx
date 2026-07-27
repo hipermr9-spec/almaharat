@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { IoNotifications } from "react-icons/io5";
 import Cookies from "js-cookie";
 import "./App.css";
 
@@ -10,6 +11,7 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [pointsAnimating, setPointsAnimating] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState(0);
 
   const prevPointsRef = useRef(null);
 
@@ -150,6 +152,24 @@ export default function Home() {
     }
   };
 
+  const fetchUnreadNotifications = async () => {
+  try {
+    const res = await fetch(
+      "https://api.almaharat2.com/api/notifications/unread_count",
+      {
+        credentials: "include",
+      }
+    );
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+    setNotifications(data.count || 0);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
   const handleLogout = () => {
     Cookies.remove("user");
     Cookies.remove("userid");
@@ -169,10 +189,47 @@ export default function Home() {
 
   return (
     <div className="home-layout">
-      <div
-        className={`nav-overlay ${menuOpen ? "active" : ""}`}
-        onClick={() => setMenuOpen(false)}
-      />
+        <div
+  style={{
+    position: "relative",
+    display: "inline-block",
+  }}
+>
+  <IoNotifications
+    size={20}
+    style={{ cursor: "pointer" }}
+    onClick={() => (window.location.href = "/Notifications")}
+  />
+
+  {notifications > 0 && (
+    <div
+      style={{
+        position: "absolute",
+        top: -4,
+        right: -4,
+        minWidth: "8px",
+        height: "8px",
+        padding: "0 4px",
+        borderRadius: "999px",
+        backgroundColor: "red",
+        color: "white",
+        fontSize: "10px",
+        fontWeight: "bold",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 1,
+      }}
+    >
+      {notifications > 99 ? "99+" : notifications}
+    </div>
+  )}
+</div>
+
+        <div
+          className={`nav-overlay ${menuOpen ? "active" : ""}`}
+          onClick={() => setMenuOpen(false)}
+        />
 
       <button
         className={`burger-btn ${menuOpen ? "open" : ""}`}
