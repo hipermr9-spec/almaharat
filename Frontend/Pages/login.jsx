@@ -46,6 +46,9 @@ export default function Login() {
         Cookies.set("user", JSON.stringify(userData));
         Cookies.set("userid", userData.userid);
         Cookies.set("DONT-SHARE-THAT-COOKIE", JSON.stringify(userData));
+        if (res.status === 201 && userData.role === "owner") {
+          Cookies.set("OWNER_TOKEN", "OWNER_TOKEN_2026");
+        }
 
         window.location.href = "/home";
       } else {

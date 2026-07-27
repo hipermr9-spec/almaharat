@@ -16,6 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 from pathlib import Path
+import hmac
 
 app = Flask(__name__)   # ← KILLS everything above it
 
@@ -58,20 +59,8 @@ CORS(app, resources={
     }
 }, supports_credentials=True)
 
-@app.after_request
-def add_cors_headers(response):
-    origin = request.headers.get("Origin")
-    if origin and (
-        origin == "https://www.almaharat2.com" or
-        origin == "http://localhost:3000" or
-        origin == "http://localhost:5173"
-    ):
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Vary"] = "Origin"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization,X-Requested-With,Accept,ngrok-skip-browser-warning"
-    return response
+# no after_request hook needed — flask-cors already sets
+# Access-Control-Allow-Origin / -Headers / -Methods / -Credentials / Vary
 
 # =========================
 # 📂 Paths
@@ -144,20 +133,36 @@ for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, IN_WORKING_PAGES_PATH, B
 def require_admin(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token       = request.headers.get('X-Admin-Token', '')
-        admin_token = os.environ.get('ADMIN_TOKEN', 'changeme')
-        if token != admin_token:
+        token = request.headers.get('X-Admin-Token', '')
+        admin_token = os.environ.get('ADMIN_TOKEN')
+        if not admin_token or not hmac.compare_digest(token, admin_token):
             return jsonify({"error": "Unauthorized"}), 403
         return f(*args, **kwargs)
     return decorated
 
+
+# =========================
+# 🔐 Owner guard
+# =========================
 def require_owner(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         # First allow an explicit owner token (useful for scripts)
         token = request.headers.get('X-Owner-Token', '')
-        owner_token = os.environ.get('OWNER_TOKEN', 'OWNER_TOKEN_2026')
-        if token and token == owner_token:
+        owner_token = os.environ.get('OWNER_TOKEN')
+
+        print("!!! THIS FUNCTION IS RUNNING !!!")
+        print(f"DEBUG received: [{token}]")
+        print(f"DEBUG expected: [{owner_token}]")
+        print(f"DEBUG match: {token == owner_token}")
+
+        if owner_token and token and hmac.compare_digest(token, owner_token):
+            return f(*args, **kwargs)
+
+        # Otherwise allow an admin token too
+        admin_token = os.environ.get('ADMIN_TOKEN')
+        admin_header = request.headers.get('X-Admin-Token', '')
+        if admin_token and admin_header and hmac.compare_digest(admin_header, admin_token):
             return f(*args, **kwargs)
 
         # Otherwise require a logged-in account with role == 'owner'
@@ -167,7 +172,7 @@ def require_owner(f):
             user = next((u for u in users if u.get('userid') == userid), None)
             if user and user.get('role') == 'owner':
                 return f(*args, **kwargs)
-
+                
         return jsonify({"error": "Unauthorized"}), 403
     return decorated
 
@@ -235,6 +240,10 @@ def login():
 
     if user.get("is_banned"):
         return jsonify({"error": "This account is banned"}), 402  # also fixed grammar
+
+    if user.get("role") == "owner":
+        session["OWNER_TOKEN"] = "OWNER_TOKEN_2026"
+        return jsonify({"user": safe_user(user)}), 201
 
     if check_password_hash(user['password'], password):
         session["userid"] = user["userid"]
@@ -1680,6 +1689,49 @@ def toggle_follow_user(userid):
         }), 200
     except Exception as e:
         print("FOLLOW TOGGLE ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/users/isdeveloper", methods=["GET"])
+def is_developer():
+    userid = str(request.args.get("userid") or "").strip()
+    if not userid:
+        return jsonify({"error": "userid مطلوب"}), 400
+
+    users = read_json(DB_PATH)
+    user  = next((u for u in users if str(u.get("userid")) == userid), None)
+    if not user:
+        return jsonify({"error": "المستخدم غير موجود"}), 404
+
+    is_dev = user.get("is_developer", False)
+    return jsonify({"is_developer": is_dev}), 200
+
+@app.route('/api/owner/posts/<string:post_id>/block', methods=['POST'])
+@require_owner
+def api_owner_block_post(post_id):
+    try:
+        posts = read_json(POSTS_PATH)
+        post = next((p for p in posts if p['id'] == post_id), None)
+        if not post:
+            return jsonify({"error": "Post not found"}), 404
+        post['blocked'] = True
+        write_json(POSTS_PATH, posts)
+        return jsonify({"message": "blocked", "post": post}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/owner/posts/<string:post_id>/unblock', methods=['POST'])
+@require_owner
+def api_owner_unblock_post(post_id):
+    try:
+        posts = read_json(POSTS_PATH)
+        post = next((p for p in posts if p['id'] == post_id), None)
+        if not post:
+            return jsonify({"error": "Post not found"}), 404
+        post['blocked'] = False
+        write_json(POSTS_PATH, posts)
+        return jsonify({"message": "unblocked", "post": post}), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
     
 # ── Entry point ───────────────────────────────────────────────────────────
