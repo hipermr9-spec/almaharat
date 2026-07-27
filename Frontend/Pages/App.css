@@ -2477,3 +2477,11 @@ a {
     transform: rotate(360deg);
   }
 }
+
+.top-banner-ad {
+     width: 100%;
+     min-height: 90px;
+     display: flex;
+     justify-content: center;
+     align-items: center;
+   }
