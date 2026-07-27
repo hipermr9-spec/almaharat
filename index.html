@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/vite.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>تعزيز مهارات 2</title>
-    
-    <!-- 1. سكربت أدسينس الرئيسي -->
+
+    <!-- سكربت أدسينس الرئيسي -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2250349622159347" crossorigin="anonymous"></script>
 
     <style>
@@ -102,31 +102,6 @@
       }
 
       @keyframes gpcFadeIn { to { opacity:1; } }
-
-      /* تنسيق خاص بحاوية الإعلان لضمان عدم حجب واجهة التطبيق */
-      body {
-        padding-bottom: 100px; /* تفريغ مساحة للإعلان بأسفل الصفحة */
-      }
-
-.adsense-global-banner {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  min-height: 90px;
-  background: transparent !important; /* لضمان عدم وجود خلفية بيضاء */
-  z-index: 998;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-}
-
-/* إخفاء إطار AdSense الفارغ على Localhost */
-.adsense-global-banner ins.adsbygoogle[data-ad-status="unfilled"],
-.adsense-global-banner ins.adsbygoogle:empty {
-  display: none !important;
-}
     </style>
   </head>
   <body>
@@ -224,19 +199,6 @@
 
     <!-- واجهة التطبيق الرئيسية -->
     <div id="root"></div>
-
-    <!-- 2. حاوية الإعلان الثابتة بأسفل الصفحة -->
-    <div class="adsense-global-banner">
-      <ins class="adsbygoogle"
-           style="display:block; width:100%; max-width:728px; height:90px;"
-           data-ad-client="ca-pub-2250349622159347"
-           data-ad-slot="9483492947"
-           data-ad-format="horizontal"
-           data-full-width-responsive="true"></ins>
-      <script>
-           (adsbygoogle = window.adsbygoogle || []).push({});
-      </script>
-    </div>
 
     <script type="module" src="/src/main.jsx"></script>
   </body>
