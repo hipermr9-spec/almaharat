@@ -99,6 +99,9 @@
 
       @keyframes gpcFadeIn { to { opacity:1; } }
     </style>
+
+    <!-- 1. سكربت أدسينس الرئيسي ينصح بوضعه داخل الـ head -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2250349622159347" crossorigin="anonymous"></script>
   </head>
   <body>
     <div id="app-loader">
@@ -172,7 +175,7 @@
           });
           obs.observe({ type: "resource", buffered: true });
         } catch (e) {
-          // Safari < 14 fallback — window "load" below still covers us
+          // Safari < 14 fallback
         }
 
         /* ── 4. window "load" — fires when ALL resources are done ── */
@@ -194,7 +197,20 @@
     </script>
 
     <div id="root"></div>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2250349622159347" crossorigin="anonymous"></script>
+
+    <!-- 2. مكان عرض الإعلان داخل الـ body -->
+    <div style="text-align: center; margin: 20px 0;">
+      <ins class="adsbygoogle"
+          style="display:block"
+          data-ad-client="ca-pub-2250349622159347"
+          data-ad-slot="9483492947"
+          data-ad-format="auto"
+          data-full-width-responsive="true"></ins>
+      <script>
+           (adsbygoogle = window.adsbygoogle || []).push({});
+      </script>
+    </div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
