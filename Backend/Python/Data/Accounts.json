@@ -54,7 +54,7 @@
         "password": "scrypt:32768:8:1$TgOfQDWXZp6Vsojo$f29b094922f4b53a8248378d07b1ce87186fd687f8448de46380c16e0b6a21f3a792b950ed6d6495bec357b308f3221ceaefa0d577e2fdd3b8efad8076aa4ecf",
         "points": 50,
         "role": "user",
-        "verified": false,
+        "verified": true,
         "is_banned": false,
         "chats": {},
         "followers": {
