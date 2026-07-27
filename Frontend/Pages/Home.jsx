@@ -39,6 +39,7 @@ export default function Home() {
         <p className="hero-desc">منصة تفاعلية تساعدك على تعزيز مهاراتك من خلال أسئلة متنوعة ومحتوى تعليمي مميز</p>
         <div className="hero-cta">
           <button className="btn-main" onClick={() => window.location.href="/register"}>ابدأي الآن 🎯</button>
+          <button className="btn-game" onClick={() => window.location.href="https://fourth-grade-fun-game.lovable.app/"}>لعبة تجريبية ✨</button>
           <button className="btn-outline" onClick={() => window.location.href="/login"}>سجلي دخولك</button>
         </div>
       </section>

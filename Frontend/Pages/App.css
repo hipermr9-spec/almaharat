@@ -93,6 +93,15 @@ body {
 }
 .btn-main:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(79,70,229,0.6); }
 
+.btn-game {
+  padding: 16px 36px; border-radius: 16px;
+  font-family: 'Tajawal', sans-serif; font-size: 1.1rem; font-weight: 700;
+  cursor: pointer; border: none;
+  background: linear-gradient(135deg, #c046e5, #8a00fc);
+  color: white; box-shadow: 0 8px 30px rgba(144, 0, 201, 0.4); transition: all 0.3s;
+}
+.btn-game:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(144, 0, 201, 0.623); }
+
 .btn-outline {
   padding: 16px 36px; border-radius: 16px;
   font-family: 'Tajawal', sans-serif; font-size: 1.1rem; font-weight: 700;
