@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import Cookies from "js-cookie";
+import { notify } from "../components/toastService";
 import "./App.css";
 
 const BASE = "https://api.almaharat2.com/api";
@@ -30,13 +31,16 @@ export default function ChangePassword() {
       if (res.ok) {
         if (data.hasEmail) {
           setForm((prev) => ({ ...prev, step: 2 }));
+          notify("success", "تم التحقق", "تم العثور على بريد إلكتروني مرتبط بحسابك.");
         } else {
-          setError(
-            "لا يوجد بريد إلكتروني مرتبط بحسابك. للمساعدة تواصل مع almaharatsupport@gmail.com"
-          );
+          const message = "لا يوجد بريد إلكتروني مرتبط بحسابك. للمساعدة تواصل مع almaharatsupport@gmail.com";
+          setError(message);
+          notify("warning", "لا يوجد بريد إلكتروني", message);
         }
       } else {
-        setError(data.error || "حدث خطأ. يرجى المحاولة مرة أخرى.");
+        const message = data.error || "حدث خطأ. يرجى المحاولة مرة أخرى.";
+        setError(message);
+        notify("error", "فشل التحقق", message);
       }
     } catch {
       setError("تعذر الاتصال بالمنصة. تحقق من الاتصال بالإنترنت.");
@@ -61,11 +65,16 @@ export default function ChangePassword() {
       if (res.ok) {
         if (data.valid) {
           setForm((prev) => ({ ...prev, step: 3 }));
+          notify("success", "تم تأكيد الكود", "يمكنك الآن اختيار كلمة مرور جديدة.");
         } else {
-          setError("كود التحقق غير صحيح. يرجى المحاولة مرة أخرى.");
+          const message = "كود التحقق غير صحيح. يرجى المحاولة مرة أخرى.";
+          setError(message);
+          notify("error", "كود غير صالح", message);
         }
       } else {
-        setError(data.error || "حدث خطأ. يرجى المحاولة مرة أخرى.");
+        const message = data.error || "حدث خطأ. يرجى المحاولة مرة أخرى.";
+        setError(message);
+        notify("error", "فشل التحقق", message);
       }
     } catch {
       setError("تعذر الاتصال بالمنصة. تحقق من الاتصال بالإنترنت.");
@@ -81,11 +90,15 @@ export default function ChangePassword() {
 
     // BUG FIX #4: no client-side password match check existed
     if (form.newPassword !== form.confirmNewPassword) {
-      setError("كلمتا المرور غير متطابقتين. يرجى التأكد من إدخالهما بشكل صحيح.");
+      const message = "كلمتا المرور غير متطابقتين. يرجى التأكد من إدخالهما بشكل صحيح.";
+      setError(message);
+      notify("warning", "كلمتا المرور غير متطابقتين", message);
       return;
     }
     if (form.newPassword.length < 6) {
-      setError("كلمة المرور يجب أن تكون 6 أحرف على الأقل.");
+      const message = "كلمة المرور يجب أن تكون 6 أحرف على الأقل.";
+      setError(message);
+      notify("warning", "كلمة المرور قصيرة", message);
       return;
     }
 
@@ -104,8 +117,11 @@ export default function ChangePassword() {
       const data = await res.json();
       if (res.ok) {
         setForm((prev) => ({ ...prev, step: 4 })); // success state
+        notify("success", "تم تغيير كلمة المرور", "تم تغيير كلمة المرور بنجاح.");
       } else {
-        setError(data.error || "حدث خطأ أثناء تغيير كلمة المرور.");
+        const message = data.error || "حدث خطأ أثناء تغيير كلمة المرور.";
+        setError(message);
+        notify("error", "فشل تغيير كلمة المرور", message);
       }
     } catch {
       setError("تعذر الاتصال بالمنصة. تحقق من الاتصال بالإنترنت.");

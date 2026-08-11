@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Cookies from 'js-cookie';
 import './App.css';
 
 const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+
+const getStoredUser = () => {
+  try {
+    const raw = Cookies.get('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
 // ─── Rank Tiers ───────────────────────────────────────────────────────────────
 const RANKS = [
@@ -87,6 +97,8 @@ export default function RanksSystem({
   baseUrl     = '',
   adminToken  = '',
 }) {
+  const [storedUser] = useState(getStoredUser);
+  const [profileUser, setProfileUser] = useState(() => storedUser || currentUser);
   const [board,   setBoard]   = useState(users);
   const [loading, setLoading] = useState(false);
   const [tab,     setTab]     = useState('board');
@@ -118,12 +130,38 @@ export default function RanksSystem({
     else fetchUsers();
   }, [users, fetchUsers]);
 
-  const pts      = currentUser?.points ?? 0;
+  useEffect(() => {
+    if (storedUser) {
+      setProfileUser(storedUser);
+      return;
+    }
+    setProfileUser(currentUser);
+  }, [storedUser, currentUser?.userid, currentUser?.points, currentUser?.username]);
+
+  useEffect(() => {
+    if (!profileUser?.userid) return;
+    let cancelled = false;
+    const loadProfile = async () => {
+      try {
+        const res = await fetch(`${API}/api/users/public/${profileUser.userid}`);
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          setProfileUser((prev) => prev ? { ...prev, ...data } : data);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadProfile();
+    return () => { cancelled = true; };
+  }, [profileUser?.userid]);
+
+  const pts      = profileUser?.points ?? 0;
   const rank     = getRank(pts);
   const next     = getNextRank(pts);
   const progress = getProgress(pts);
   const sorted   = [...board].sort((a, b) => (b.points ?? 0) - (a.points ?? 0)).slice(0, 10);
-  const myPos    = sorted.findIndex(u => u.userid === currentUser?.userid) + 1;
+  const myPos    = sorted.findIndex(u => u.userid === profileUser?.userid) + 1;
 
   // ─── CSS injected once ────────────────────────────────────────────────────
   const css = `
@@ -265,7 +303,7 @@ export default function RanksSystem({
                     key={u.userid ?? i}
                     user={u}
                     position={i + 1}
-                    isMe={u.userid === currentUser?.userid}
+                    isMe={u.userid === profileUser?.userid}
                   />
                 ))
           }

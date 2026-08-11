@@ -18,6 +18,21 @@ export default function Register() {
       alert("⚠️ يجب قبول شروط الاستخدام لإنشاء حساب");
       return;
     }
+
+    const username = form.username.trim();
+    if (!username) {
+      alert("⚠️ الرجاء إدخال اسم المستخدم");
+      return;
+    }
+    if (username !== username.toLowerCase()) {
+      alert("⚠️ اسم المستخدم يجب أن يكون بالأحرف الصغيرة فقط");
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      alert("⚠️ اسم المستخدم يمكن أن يحتوي فقط على أحرف صغيرة وأرقام وشرطة سفلية");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${BASE}/api/register`, {

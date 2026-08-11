@@ -26,6 +26,7 @@ import tokens from './Pages/tokens'
 import Help from './Pages/Help'
 import HelpVRR from './Pages/verifiyrequirments'
 import Chat from './Pages/chat'
+import FriendChat from './Pages/FriendChat'
 import Profile from './Pages/Profile'
 import Privacy from './Pages/privacy'
 import Ownerhomepage from './Pages/Website/owner_home'
@@ -38,6 +39,7 @@ import Dashboard from './studio.almaharat2.com/dashboard'
 import Pending from './Pages/Admin/pending_requests'
 import Notifications from './Pages/notifications'
 import AdBanner from './components/AdBanner'; // تاكد من صحة المسار للملف
+import ToastContainer from './components/Toast'
 
 function OldDomainPage() {
   return (
@@ -198,6 +200,7 @@ export default function App() {
           {/* 🛠️ روابط الدردشة الجديدة متضمنة تحويل مسار تلقائي */}
           <Route path="/Chat" element={<Navigate to="/Chat/New" replace />} />
           <Route path="/Chat/New" element={<Chat />} />
+          <Route path="/Chat/Friends" element={<FriendChat />} />
           <Route path="/Chat/:chatid" element={<Chat />} />
           
           <Route path="/Profile" element={<Profile />} />

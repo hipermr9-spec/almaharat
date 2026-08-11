@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 from datetime import datetime, timezone
@@ -68,14 +69,18 @@ CORS(app, resources={
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR   = os.path.join(BASE_DIR, 'Data')
 IMAGES_DIR = os.path.join(DATA_DIR, 'images')
+USERS_ICON_DIR        = os.path.join(DATA_DIR, 'users_icon')
 
 os.makedirs(DATA_DIR,   exist_ok=True)
 os.makedirs(IMAGES_DIR, exist_ok=True)
+os.makedirs(USERS_ICON_DIR, exist_ok=True)
 
 DB_PATH               = os.path.join(DATA_DIR, 'Accounts.json')
 EMAILS_PATH           = os.path.join(DATA_DIR, 'emails.json')
 PASSWORD_RESET_CODES  = os.path.join(DATA_DIR, 'password_reset_codes.json')
 PASSWORD_RESET_TOKENS = os.path.join(DATA_DIR, 'password_reset_tokens.json')
+EMAIL_VERIFICATION_CODES = os.path.join(DATA_DIR, 'email_verification_codes.json')
+TWOFA_CODES           = os.path.join(DATA_DIR, 'twofa_codes.json')
 IN_WORKING_PAGES_PATH = os.path.join(DATA_DIR, 'In_WorkingPages.json')
 BLOCKED_PAGES_PATH    = os.path.join(DATA_DIR, 'BlockedPages.json')
 ONLINE_PATH           = os.path.join(DATA_DIR, 'online.json')
@@ -122,11 +127,34 @@ def write_json(path, data):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_user_from_session():
+    userid = session.get('userid')
+    if not userid:
+        return None
+    users = read_json(DB_PATH)
+    return next((u for u in users if str(u.get('userid')) == str(userid)), None)
+
+
+def cleanup_expired_codes(path, max_age_seconds=900):
+    codes = read_json(path)
+    now = datetime.now(timezone.utc)
+    valid = []
+    for record in codes:
+        created = record.get('createdAt')
+        try:
+            if created and (now - datetime.fromisoformat(created)).total_seconds() <= max_age_seconds:
+                valid.append(record)
+        except Exception:
+            pass
+    if len(valid) != len(codes):
+        write_json(path, valid)
+    return valid
+
 def safe_user(user):
     return {k: v for k, v in user.items() if k != 'password'}
 
 # Initialise files that must always exist
-for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH, LINKONLY_POSTS_PATH]:
+for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, EMAIL_VERIFICATION_CODES, TWOFA_CODES, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH, LINKONLY_POSTS_PATH]:
     if not os.path.exists(_p):
         write_json(_p, [])
 
@@ -138,9 +166,14 @@ def require_admin(f):
     def decorated(*args, **kwargs):
         token = request.headers.get('X-Admin-Token', '')
         admin_token = os.environ.get('ADMIN_TOKEN')
-        if not admin_token or not hmac.compare_digest(token, admin_token):
-            return jsonify({"error": "Unauthorized"}), 403
-        return f(*args, **kwargs)
+        if admin_token and hmac.compare_digest(token, admin_token):
+            return f(*args, **kwargs)
+
+        user = get_user_from_session()
+        if user and user.get('role') in ('admin', 'owner'):
+            return f(*args, **kwargs)
+
+        return jsonify({"error": "Unauthorized"}), 403
     return decorated
 
 
@@ -199,6 +232,10 @@ def require_admin_or_owner(f):
         if owner_secret and hmac.compare_digest(owner_header or "", owner_secret):
             return f(*args, **kwargs)
 
+        user = get_user_from_session()
+        if user and user.get('role') in ('admin', 'owner'):
+            return f(*args, **kwargs)
+
         return jsonify({"error": "Forbidden"}), 403
 
     return decorated
@@ -215,34 +252,41 @@ def serve_image(filename):
 # =========================
 @app.route('/api/register', methods=['POST'])
 def register():
-    data     = request.json or {}
-    username = (data.get('username') or '').strip()
-    password = data.get('password') or ''
+    data         = request.json or {}
+    raw_username = (data.get('username') or '').strip()
+    password     = data.get('password') or ''
 
-    if not username or not password:
+    if not raw_username or not password:
         return jsonify({"error": "Username and password are required"}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
+    if raw_username != raw_username.lower():
+        return jsonify({"error": "Username must be lowercase only"}), 400
+    if not re.match(r'^[a-z0-9_]+$', raw_username):
+        return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
 
+    username = raw_username
     accounts = read_json(DB_PATH)
     if any(acc['username'] == username for acc in accounts):
         return jsonify({"error": "Username already exists"}), 400
 
     new_user = {
-        "userid":    str(uuid.uuid4()),
-        "username":  username,
-        "password":  generate_password_hash(password),
-        "points":    0,
-        "role":      "user",
-        "verified":  False,
-        "is_banned": False,
-        "chats": {},
-        "followers": {},
+        "userid":         str(uuid.uuid4()),
+        "username":       username,
+        "password":       generate_password_hash(password),
+        "points":         0,
+        "role":           "user",
+        "verified":       False,
+        "is_banned":      False,
+        "chats":          {},
+        "followers":      {},
         "lesson_progress": 0,
-        "following": {},
-        "Friends": [],
-        "notification": [],
-        "profile_picture": ""
+        "following":      {},
+        "Friends":        [],
+        "notification":   [],
+        "profile_picture": "",
+        "mailEnabled":    False,
+        "twoFA":          False
     }
     accounts.append(new_user)
     write_json(DB_PATH, accounts)
@@ -250,9 +294,8 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    # FIX #1 (continued) — removed session config from here; it now lives at app level above.
     data     = request.json or {}
-    username = (data.get('username') or '').strip()
+    username = (data.get('username') or '').strip().lower()
     password = data.get('password') or ''
 
     if not username or not password:
@@ -261,28 +304,132 @@ def login():
     accounts = read_json(DB_PATH)
     user     = next((acc for acc in accounts if acc['username'] == username), None)
 
-    # FIX #2 — check user exists BEFORE accessing user["is_banned"]; original code
-    #           crashed with TypeError when username was not found (user was None).
     if not user:
         return jsonify({"error": "Invalid username or password"}), 401
 
     if user.get("is_banned"):
-        return jsonify({"error": "This account is banned"}), 402  # also fixed grammar
+        return jsonify({"error": "This account is banned"}), 402
+
+    if not check_password_hash(user['password'], password):
+        return jsonify({"error": "Invalid username or password"}), 401
 
     if user.get("role") == "owner":
         session["OWNER_TOKEN"] = "OWNER_TOKEN_2026"
-        return jsonify({"user": safe_user(user)}), 201
 
-    if check_password_hash(user['password'], password):
-        session["userid"] = user["userid"]
-        session["DONT-SHARE-THAT-COOKIE"] = user
-        try:
-            update_online(user["userid"], user.get("username", ""))
-        except Exception:
-            pass
-        return jsonify({"user": safe_user(user)}), 200
+    if user.get("twoFA"):
+        email_record = next((e for e in read_json(EMAILS_PATH)
+                             if str(e.get('userid')) == str(user['userid'])), None)
+        if not email_record or not email_record.get('verified', False):
+            return jsonify({"error": "التحقق الثنائي مفعل ولا يوجد بريد إلكتروني موثق. رجاءً تحقق من بريدك أولاً."}), 400
 
-    return jsonify({"error": "Invalid username or password"}), 401
+        code = str(random.randint(100000, 999999))
+        codes = [c for c in read_json(TWOFA_CODES) if str(c.get('userid')) != str(user['userid'])]
+        codes.append({
+            "userid": user['userid'],
+            "code": code,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+        write_json(TWOFA_CODES, codes)
+        send_email(email_record['email'], "كود الدخول إلى منصة المهارات", f"رمز التحقق الخاص بك هو: {code}")
+        return jsonify({"twoFA_required": True, "userid": user["userid"]}), 200
+
+    session["userid"] = user["userid"]
+    session["DONT-SHARE-THAT-COOKIE"] = user
+    try:
+        update_online(user["userid"], user.get("username", ""))
+    except Exception:
+        pass
+    return jsonify({"user": safe_user(user)}), 200
+
+@app.route('/api/login-2fa', methods=['POST'])
+def login_2fa():
+    data   = request.json or {}
+    userid = str(data.get('userid') or '').strip()
+    code   = str(data.get('code') or '').strip()
+
+    if not userid or not code:
+        return jsonify({"error": "userid and code are required"}), 400
+
+    codes = cleanup_expired_codes(TWOFA_CODES)
+    record = next((c for c in codes if str(c.get('userid')) == userid and c.get('code') == code), None)
+    if not record:
+        return jsonify({"error": "Invalid or expired verification code"}), 400
+
+    users = read_json(DB_PATH)
+    user  = next((acc for acc in users if str(acc.get('userid')) == userid), None)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == userid), None)
+    if not email_record or not email_record.get('verified', False):
+        return jsonify({"error": "Email must be verified before logging in with 2FA"}), 400
+
+    session["userid"] = user["userid"]
+    session["DONT-SHARE-THAT-COOKIE"] = user
+    try:
+        update_online(user["userid"], user.get("username", ""))
+    except Exception:
+        pass
+
+    remaining = [c for c in codes if not (str(c.get('userid')) == userid and c.get('code') == code)]
+    write_json(TWOFA_CODES, remaining)
+    return jsonify({"user": safe_user(user)}), 200
+
+@app.route('/api/verify-email', methods=['POST'])
+def verify_email():
+    data   = request.json or {}
+    userid = str(data.get('userid') or '').strip()
+    code   = str(data.get('code') or '').strip()
+
+    if not userid or not code:
+        return jsonify({"error": "userid and code are required"}), 400
+
+    records = read_json(EMAIL_VERIFICATION_CODES)
+    record  = next((r for r in records if str(r.get('userid')) == userid and r.get('code') == code), None)
+    if not record:
+        return jsonify({"error": "Invalid or expired verification code"}), 400
+
+    emails = read_json(EMAILS_PATH)
+    email_record = next((e for e in emails if str(e.get('userid')) == userid), None)
+    if not email_record:
+        return jsonify({"error": "Email record not found"}), 404
+
+    email_record['verified'] = True
+    write_json(EMAILS_PATH, emails)
+    write_json(EMAIL_VERIFICATION_CODES, [r for r in records if not (str(r.get('userid')) == userid and r.get('code') == code)])
+    return jsonify({"success": True, "email": email_record.get('email')}), 200
+
+@app.route('/api/upload-profile-picture', methods=['POST'])
+def upload_profile_picture():
+    if 'file' not in request.files:
+        return jsonify({"error": "File required"}), 400
+
+    file   = request.files['file']
+    userid = str(request.form.get('userid') or '').strip()
+
+    if not userid:
+        return jsonify({"error": "userid is required"}), 400
+    if file.filename == '':
+        return jsonify({"error": "File name required"}), 400
+    if not allowed_file(file.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+
+    users = read_json(DB_PATH)
+    user  = next((u for u in users if str(u.get('userid')) == userid), None)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    username = user.get('username') or str(userid)
+    user_dir = os.path.join(USERS_ICON_DIR, username)
+    os.makedirs(user_dir, exist_ok=True)
+    filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+    save_path = os.path.join(user_dir, filename)
+    file.save(save_path)
+
+    pic_url = f"{request.host_url.rstrip('/')}/uploads/users_icon/{username}/{filename}"
+    user['profile_picture'] = pic_url
+    write_json(DB_PATH, users)
+    return jsonify({"success": True, "profile_picture": pic_url}), 200
 
 @app.route("/api/admin/users", methods=["GET"])
 @require_admin
@@ -329,6 +476,11 @@ def update_points():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/uploads/users_icon/<username>/<filename>')
+def serve_user_icon(username, filename):
+    return send_from_directory(os.path.join(USERS_ICON_DIR, username), filename)
+
+
 @app.route('/api/save-email', methods=['POST'])
 def save_email():
     try:
@@ -341,6 +493,11 @@ def save_email():
         if not email or "@" not in email:
             return jsonify({"error": "Invalid email"}), 400
 
+        users = read_json(DB_PATH)
+        user = next((u for u in users if str(u.get("userid")) == userid), None)
+        if user is None:
+            return jsonify({"error": "User not found"}), 404
+
         emails = read_json(EMAILS_PATH)
         existing_by_user = next((e for e in emails if str(e.get("userid")) == userid), None)
         duplicate_email = next((e for e in emails if e.get("email") == email and str(e.get("userid")) != userid), None)
@@ -348,22 +505,38 @@ def save_email():
         if duplicate_email:
             return jsonify({"error": "Email already in use by another account"}), 400
 
-        if existing_by_user:
-            if existing_by_user.get("email") == email:
-                return jsonify({"message": "Email already saved"}), 200
-            existing_by_user["email"] = email
-            existing_by_user["createdAt"] = datetime.now(timezone.utc).isoformat()
-            write_json(EMAILS_PATH, emails)
-            return jsonify({"message": "Email updated"}), 200
-
-        emails.append({
-            "id":        str(uuid.uuid4()),
-            "userid":    userid,
-            "email":     email,
-            "createdAt": datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat()
+        verification_code = str(random.randint(100000, 999999))
+        verification_records = [r for r in read_json(EMAIL_VERIFICATION_CODES) if str(r.get("userid")) != userid]
+        verification_records.append({
+            "userid": userid,
+            "email": email,
+            "code": verification_code,
+            "createdAt": now
         })
+        write_json(EMAIL_VERIFICATION_CODES, verification_records)
+
+        if existing_by_user:
+            existing_by_user["email"] = email
+            existing_by_user["verified"] = False
+            existing_by_user["createdAt"] = now
+            message = "Email updated and verification code sent"
+        else:
+            emails.append({
+                "id":        str(uuid.uuid4()),
+                "userid":    userid,
+                "email":     email,
+                "verified":  False,
+                "createdAt": now
+            })
+            message = "Email saved and verification code sent"
+
+        user["mailEnabled"] = True
+        write_json(DB_PATH, users)
         write_json(EMAILS_PATH, emails)
-        return jsonify({"message": "Email saved"}), 201
+
+        send_email(email, "رمز التحقق لبريد منصة المهارات", f"رمز التحقق الخاص بك هو: {verification_code}")
+        return jsonify({"message": message, "email": email}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -575,12 +748,19 @@ def get_settings(userid):
     user  = next((u for u in users if u["userid"] == userid), None)
     if not user:
         return jsonify({"error": "User not found"}), 404
-    return jsonify({"mailEnabled": user.get("mailEnabled", False),
-                    "twoFA":       user.get("twoFA",       False)})
+
+    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
+
+    return jsonify({
+        "mailEnabled": user.get("mailEnabled", False),
+        "twoFA":       user.get("twoFA",       False),
+        "email":       email_record.get("email") if email_record else "",
+        "emailVerified": bool(email_record and email_record.get("verified", False)),
+        "profile_picture": user.get("profile_picture", "")
+    })
 
 @app.route("/api/update-setting", methods=["POST"])
 def update_setting():
-    # FIX #5 — added `or {}` so .get() never crashes on a missing/non-JSON body
     data   = request.get_json() or {}
     userid = data.get("userid")
     key    = data.get("key")
@@ -590,9 +770,15 @@ def update_setting():
         return jsonify({"error": "Invalid setting"}), 400
 
     users = read_json(DB_PATH)
+    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
     for user in users:
         if user["userid"] == userid:
-            user[key] = bool(value)
+            if key == "twoFA":
+                if value and not (email_record and email_record.get("verified", False)):
+                    return jsonify({"error": "A verified email is required before enabling 2FA"}), 400
+                user["twoFA"] = bool(value)
+            else:
+                user[key] = bool(value)
             break
     else:
         return jsonify({"error": "User not found"}), 404
@@ -636,14 +822,17 @@ def change_password():
 
 @app.route("/api/change-username", methods=["POST"])
 def change_username():
-    # FIX #5 — added `or {}`
     data        = request.get_json() or {}
     userid      = data.get("userid")
     newUsername = (data.get("newUsername") or "").strip()
     if not newUsername:
         return jsonify({"error": "Empty name"}), 400
+    if newUsername != newUsername.lower():
+        return jsonify({"error": "Username must be lowercase only"}), 400
+    if not re.match(r'^[a-z0-9_]+$', newUsername):
+        return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
+
     users = read_json(DB_PATH)
-    # FIX #7 — check uniqueness; original code allowed duplicate usernames
     if any(u["username"] == newUsername for u in users):
         return jsonify({"error": "Username already taken"}), 400
     for user in users:
@@ -1787,8 +1976,37 @@ def rename_chat(chat_id):
 
     return jsonify({"success": True})
 
+def normalize_id_list(values):
+    if isinstance(values, list):
+        normalized = []
+        for item in values:
+            item_id = str(item).strip()
+            if item_id:
+                normalized.append(item_id)
+        return normalized
+    return []
+
+
+def ensure_id_in_list(values, item_id):
+    item_id = str(item_id).strip()
+    if not item_id:
+        return normalize_id_list(values)
+    values = normalize_id_list(values)
+    if item_id not in values:
+        values.append(item_id)
+    return values
+
+
+def remove_id_from_list(values, item_id):
+    item_id = str(item_id).strip()
+    if not item_id:
+        return normalize_id_list(values)
+    values = normalize_id_list(values)
+    return [value for value in values if value != item_id]
+
+
 def safe_user(user):
-    u = {k: v for k, v in user.items() if k != 'password'}
+    u = {k: v for k, v in user.items() if k not in {'password', 'private_chats'}}
 
     followers = u.get('followers')
     if isinstance(followers, dict):
@@ -1802,7 +2020,112 @@ def safe_user(user):
     elif not isinstance(following, int):
         u['following'] = 0
 
+    friends = u.get('Friends')
+    if isinstance(friends, list):
+        u['friends_count'] = len(normalize_id_list(friends))
+    else:
+        u['friends_count'] = 0
+
     return u
+
+@app.route("/api/friends/<string:userid>", methods=["GET"])
+def get_friends(userid):
+    try:
+        users = read_json(DB_PATH)
+        current_user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
+        if not current_user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
+
+        friend_ids = normalize_id_list(current_user.get("Friends"))
+        friends = []
+        for friend_id in friend_ids:
+            friend_user = next((u for u in users if str(u.get("userid")) == str(friend_id)), None)
+            if friend_user:
+                friend_data = safe_user(friend_user)
+                friend_data["is_friend"] = True
+                friends.append(friend_data)
+
+        return jsonify(friends), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/friends/messages", methods=["GET"])
+def get_friend_messages():
+    try:
+        userid = str(request.args.get("userid") or "").strip()
+        friend_id = str(request.args.get("friend_id") or "").strip()
+        if not userid or not friend_id:
+            return jsonify({"error": "userid and friend_id are required"}), 400
+
+        users = read_json(DB_PATH)
+        current_user = next((u for u in users if str(u.get("userid")) == userid), None)
+        if not current_user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
+
+        chats = current_user.get("private_chats") or {}
+        return jsonify({"messages": chats.get(friend_id, [])}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/friends/messages", methods=["POST"])
+def send_friend_message():
+    try:
+        data = request.get_json() or {}
+        userid = str(data.get("userid") or "").strip()
+        friend_id = str(data.get("friend_id") or "").strip()
+        message = (data.get("message") or "").strip()
+
+        if not userid or not friend_id or not message:
+            return jsonify({"error": "userid, friend_id and message are required"}), 400
+
+        users = read_json(DB_PATH)
+        current_user = next((u for u in users if str(u.get("userid")) == userid), None)
+        friend_user = next((u for u in users if str(u.get("userid")) == friend_id), None)
+
+        if not current_user or not friend_user:
+            return jsonify({"error": "المستخدم أو الصديق غير موجود"}), 404
+
+        current_friends = normalize_id_list(current_user.get("Friends"))
+        friend_friends = normalize_id_list(friend_user.get("Friends"))
+        if friend_id not in current_friends or userid not in friend_friends:
+            return jsonify({"error": "يجب أن تكونا متابعين لبعضكما لتتمكن من الدردشة"}), 403
+
+        private_chats = current_user.setdefault("private_chats", {})
+        friend_private_chats = friend_user.setdefault("private_chats", {})
+
+        conversation = private_chats.setdefault(friend_id, [])
+        friend_conversation = friend_private_chats.setdefault(userid, [])
+
+        entry = {
+            "id": str(uuid.uuid4()),
+            "from": userid,
+            "text": message,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        conversation.append(entry)
+        friend_conversation.append({
+            "id": entry["id"],
+            "from": userid,
+            "text": message,
+            "created_at": entry["created_at"],
+        })
+
+        if "notifications" not in friend_user:
+            friend_user["notifications"] = []
+        friend_user["notifications"].append({
+            "id": str(uuid.uuid4()),
+            "type": "message",
+            "title": "رسالة جديدة من صديق",
+            "message": f"لديك رسالة جديدة من {current_user.get('username', '')}.",
+            "from_user": userid,
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+
+        write_json(DB_PATH, users)
+        return jsonify(entry), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/users/public/<string:userid>", methods=["GET"])
 def get_public_user(userid):
@@ -1857,20 +2180,15 @@ def toggle_follow_user(userid):
 
         already_following = follower_id in target_user["followers"]
 
-
         if already_following:
             target_user["followers"].pop(follower_id, None)
             follower_user["following"].pop(target_id, None)
-
             now_following = False
-
         else:
             target_user["followers"][follower_id] = now
             follower_user["following"][target_id] = now
-
             now_following = True
 
-            # إرسال إشعار عند المتابعة فقط
             if "notifications" not in target_user:
                 target_user["notifications"] = []
 
@@ -1883,13 +2201,21 @@ def toggle_follow_user(userid):
                 "created_at": now
             })
 
+        mutual_follow = (follower_id in target_user.get("followers", {})) and (target_id in follower_user.get("following", {}))
+        if mutual_follow:
+            target_user["Friends"] = ensure_id_in_list(target_user.get("Friends"), follower_id)
+            follower_user["Friends"] = ensure_id_in_list(follower_user.get("Friends"), target_id)
+        else:
+            target_user["Friends"] = remove_id_from_list(target_user.get("Friends"), follower_id)
+            follower_user["Friends"] = remove_id_from_list(follower_user.get("Friends"), target_id)
 
         write_json(DB_PATH, users)
 
-
         return jsonify({
             "following": now_following,
-            "followers_count": len(target_user["followers"])
+            "followers_count": len(target_user["followers"]),
+            "is_friend": mutual_follow,
+            "friends_count": len(normalize_id_list(target_user.get("Friends")))
         }), 200
 
 

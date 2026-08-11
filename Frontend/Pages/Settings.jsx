@@ -14,6 +14,13 @@ export default function Settings() {
 
   const [mailEnabled, setMailEnabled] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [savedEmail, setSavedEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
+  const [profileFile, setProfileFile] = useState(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [message, setMessage] = useState("");
 
   const [activeModal, setActiveModal] = useState(null);
 
@@ -42,6 +49,10 @@ export default function Settings() {
       if (res.ok) {
         setMailEnabled(data.mailEnabled);
         setTwoFA(data.twoFA);
+        setSavedEmail(data.email || "");
+        setEmail(data.email || "");
+        setEmailVerified(data.emailVerified);
+        setProfilePicture(data.profile_picture || "");
       }
     } catch (err) {
       console.error(err);
@@ -69,12 +80,17 @@ export default function Settings() {
           value,
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         console.error('Update setting failed:', data.error);
+        alert(data.error || "فشل حفظ الإعداد");
+        return false;
       }
+      return true;
     } catch (err) {
       console.error('Error updating setting:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+      return false;
     }
   };
 
@@ -107,12 +123,86 @@ export default function Settings() {
       }
 
       setMailEnabled(true);
+      setSavedEmail(data.email || email);
+      setEmailVerified(false);
       updateSetting("mailEnabled", true);
-      setActiveModal(null);
+      setMessage("تم إرسال رمز التحقق إلى بريدك. الرجاء إدخاله للتحقق.");
       alert("تم حفظ البريد بنجاح ✅");
     } catch (err) {
       console.error('Error saving email:', err);
       alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
+  };
+
+  const verifyEmail = async () => {
+    if (!verificationCode.trim()) {
+      alert("الرجاء إدخال رمز التحقق");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BASE}/api/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userid: user.userid,
+          code: verificationCode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "فشل التحقق من البريد الإلكتروني.");
+        return;
+      }
+
+      setEmailVerified(true);
+      setMailEnabled(true);
+      setMessage("تم التحقق من البريد الإلكتروني بنجاح ✅");
+      setActiveModal(null);
+      alert("تم التحقق من البريد الإلكتروني بنجاح ✅");
+    } catch (err) {
+      console.error('Error verifying email:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    }
+  };
+
+  const uploadProfilePicture = async () => {
+    if (!user?.userid) {
+      alert("لم يتم العثور على المستخدم؛ يرجى تسجيل الدخول مجددًا.");
+      return;
+    }
+    if (!profileFile) {
+      alert("اختر ملف صورة أولاً.");
+      return;
+    }
+
+    setUploadingPicture(true);
+    try {
+      const formData = new FormData();
+      formData.append("userid", user.userid);
+      formData.append("file", profileFile);
+
+      const res = await fetch(`${BASE}/api/upload-profile-picture`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "حدث خطأ أثناء رفع الصورة.");
+        return;
+      }
+
+      setProfilePicture(data.profile_picture);
+      setProfileFile(null);
+      setMessage("تم رفع صورة الملف الشخصي بنجاح ✅");
+      alert("تم رفع صورة الملف الشخصي بنجاح ✅");
+    } catch (err) {
+      console.error('Error uploading profile picture:', err);
+      alert("حدث خطأ أثناء الاتصال بالخادم");
+    } finally {
+      setUploadingPicture(false);
     }
   };
 
@@ -236,7 +326,8 @@ export default function Settings() {
           <li><a href="/posts">منشورات 📭</a></li>
           <li><a href="/enrichments">إثراءات 🌟</a></li>
           <li><a href="/settings">الإعدادات ⚙️</a></li>
-          <li><a href="/Rank">مستوى 🏅</a></li>
+          <li><a href="/Chat">دردشة 👥</a></li>
+          <li><a href="/Ranks">مستوى 🏅</a></li>
           <li><a href={user ? `/Stats/${user.userid}` : '/Stats/'}>أحصائيات 🎯</a></li>
         </ul>
 
@@ -263,7 +354,30 @@ export default function Settings() {
           <div className="settings-item" onClick={() => setActiveModal("email")}>
             <div>
               <h3>البريد الإلكتروني</h3>
-              <p>الإشعارات</p>
+              <p>{savedEmail ? savedEmail : "لم يتم تعيين البريد بعد"}</p>
+              <p>{emailVerified ? "مؤكد" : mailEnabled ? "بانتظار التحقق" : "غير مفعل"}</p>
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <div>
+              <h3>صورة الملف الشخصي</h3>
+              <p>{profilePicture ? "تم رفع صورة" : "لم يتم رفع صورة"}</p>
+            </div>
+            <div className="profile-upload">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setProfileFile(e.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={uploadProfilePicture}
+                disabled={uploadingPicture}
+              >
+                {uploadingPicture ? "جاري الرفع..." : "رفع"}
+              </button>
             </div>
           </div>
 
@@ -271,16 +385,20 @@ export default function Settings() {
           <div className="settings-item">
             <div>
               <h3>التحقق الثنائي</h3>
+              <p>{emailVerified ? "يمكنك تفعيل / تعطيل" : "يتطلب بريدًا مؤكدًا"}</p>
             </div>
 
-            {/* 🔥 SWITCH (زي ما هو بدون تغيير) */}
             <label className="switch">
               <input
                 type="checkbox"
                 checked={twoFA}
-                onChange={(e) => {
-                  setTwoFA(e.target.checked);
-                  updateSetting("twoFA", e.target.checked);
+                onChange={async (e) => {
+                  const enabled = e.target.checked;
+                  setTwoFA(enabled);
+                  const result = await updateSetting("twoFA", enabled);
+                  if (!result) {
+                    setTwoFA((prev) => !prev);
+                  }
                 }}
               />
               <span className="slider"></span>
@@ -313,8 +431,15 @@ export default function Settings() {
             {activeModal === "email" && (
               <>
                 <h3>📧 البريد</h3>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="example@gmail.com" />
                 <button onClick={saveEmail}>حفظ</button>
+                {savedEmail && !emailVerified && (
+                  <>
+                    <p style={{ marginTop: 12 }}>أدخل رمز التحقق المرسل إلى بريدك</p>
+                    <input value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} placeholder="رمز التحقق" />
+                    <button onClick={verifyEmail}>تحقق</button>
+                  </>
+                )}
               </>
             )}
 

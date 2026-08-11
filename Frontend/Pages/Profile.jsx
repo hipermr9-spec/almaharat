@@ -203,6 +203,7 @@ export default function Profile() {
   const [error,       setError]       = useState(null);
   const [selected,    setSelected]    = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isFriend,    setIsFriend]    = useState(false);
   const [followBusy,  setFollowBusy]  = useState(false);
   const abortControllerRef = useRef(null);
 
@@ -238,6 +239,7 @@ export default function Profile() {
       const data = await r.json();
       setUser(data);
       setIsFollowing(!!data.is_following);
+      setIsFriend(!!data.is_friend);
     } catch (e) {
       if (e.name !== "AbortError") {
         setError(e.message);
@@ -281,7 +283,8 @@ export default function Profile() {
       const data = await r.json();
       if (r.ok) {
         setIsFollowing(data.following);
-        setUser((u) => (u ? { ...u, followers: data.followers_count } : u));
+        setIsFriend(!!data.is_friend);
+        setUser((u) => (u ? { ...u, followers: data.followers_count, friends_count: data.friends_count, is_friend: data.is_friend } : u));
       } else {
         console.error("Follow toggle error:", data.error);
       }
@@ -341,7 +344,10 @@ export default function Profile() {
                 onError={(e) => {
                   // Broken/unreachable image URL — fall back to the letter avatar
                   e.currentTarget.style.display = "none";
-                  e.currentTarget.nextSibling.style.display = "flex";
+                  const fallback = e.currentTarget.nextSibling;
+                  if (fallback) {
+                    fallback.style.display = "flex";
+                  }
                 }}
               />
             ) : null}
@@ -409,11 +415,11 @@ export default function Profile() {
               </>
             ) : (
               <button
-                className={isFollowing ? "btn-ghost" : "btn-primary"}
+                className={isFriend ? "btn-ghost" : isFollowing ? "btn-ghost" : "btn-primary"}
                 onClick={toggleFollow}
                 disabled={followBusy || !stored}
               >
-                {isFollowing ? "إلغاء المتابعة" : "+ متابعة"}
+                {isFriend ? "أنتما أصدقاء" : isFollowing ? "إلغاء المتابعة" : "+ متابعة"}
               </button>
             )}
           </div>

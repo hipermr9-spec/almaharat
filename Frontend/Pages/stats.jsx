@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import Cookies from 'js-cookie';
+import { useParams } from 'react-router-dom';
 import './App.css';
 
 const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
+
+const getStoredUser = () => {
+  try {
+    const raw = Cookies.get('user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
 // ─── Rank Tiers ───────────────────────────────────────────────────────────────
 const RANKS = [
@@ -108,6 +119,9 @@ export default function StudentStats({
   baseUrl     = '',
   adminToken  = '',
 }) {
+  const { id } = useParams();
+  const [storedUser] = useState(getStoredUser);
+  const [profileUser, setProfileUser] = useState(() => storedUser || currentUser);
   const [posts,   setPosts]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -123,14 +137,25 @@ export default function StudentStats({
     document.head.appendChild(link);
   }, []);
 
-  // Keep pts in sync when currentUser prop changes
   useEffect(() => {
+    if (storedUser) {
+      setProfileUser(storedUser);
+      setPts(storedUser.points ?? 0);
+      return;
+    }
+    setProfileUser(currentUser);
     setPts(currentUser?.points ?? 0);
-  }, [currentUser?.points]);
+  }, [storedUser, currentUser?.userid, currentUser?.points, currentUser?.username]);
 
-  // Fetch posts + optionally refresh points
   useEffect(() => {
-    if (!currentUser?.userid) { setLoading(false); return; }
+    if (id) {
+      setProfileUser((prev) => prev ? { ...prev, userid: id } : { userid: id });
+    }
+  }, [id]);
+
+  useEffect(() => {
+    const userid = profileUser?.userid;
+    if (!userid) { setLoading(false); return; }
 
     let cancelled = false;
 
@@ -138,13 +163,18 @@ export default function StudentStats({
       setLoading(true);
       setError(null);
       try {
-        // Posts
-        const postsRes = await fetch(`${baseUrl}/api/posts/user/${currentUser.userid}`);
+        const profileRes = await fetch(`${API}/api/users/public/${userid}`);
+        if (!cancelled && profileRes.ok) {
+          const data = await profileRes.json();
+          setProfileUser((prev) => prev ? { ...prev, ...data } : data);
+          if (typeof data.points === 'number') setPts(data.points);
+        }
+
+        const postsRes = await fetch(`${API}/api/posts/user/${userid}`);
         if (!cancelled && postsRes.ok) setPosts(await postsRes.json());
 
-        // Fresh points (admin only)
         if (adminToken) {
-          const ptsRes = await fetch(`${baseUrl}/api/admin/get_points/${currentUser.userid}`, {
+          const ptsRes = await fetch(`${API}/api/admin/get_points/${userid}`, {
             headers: { 'X-Admin-Token': adminToken },
           });
           if (!cancelled && ptsRes.ok) {
@@ -160,7 +190,7 @@ export default function StudentStats({
 
     loadData();
     return () => { cancelled = true; };
-  }, [currentUser?.userid, baseUrl, adminToken]);
+  }, [profileUser?.userid, adminToken]);
 
   const rank     = getRank(pts);
   const next     = getNextRank(pts);
@@ -170,7 +200,7 @@ export default function StudentStats({
   const totalComments = posts.reduce((s, p) => s + (p.comments?.length ?? 0), 0);
 
   // Initials for avatar
-  const initials = (currentUser?.username ?? 'ض').slice(0, 1);
+  const initials = (profileUser?.username ?? currentUser?.username ?? 'ض').slice(0, 1);
 
   // ─── CSS ─────────────────────────────────────────────────────────────────
   const css = `
@@ -235,14 +265,14 @@ export default function StudentStats({
             marginBottom: 4, overflow: 'hidden',
             textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {currentUser?.username ?? 'ضيف'}
+            {profileUser?.username ?? currentUser?.username ?? 'ضيف'}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18 }}>{rank.icon}</span>
             <span style={{ fontSize: 13, color: rank.t, fontWeight: 600 }}>{rank.name}</span>
             <span style={{ fontSize: 11, color: '#4a5568' }}>•</span>
             <span style={{ fontSize: 11, color: '#64748b' }}>
-              {currentUser?.role === 'admin' ? '👑 مشرف' : '🧑‍🎓 طالب'}
+              {profileUser?.role === 'admin' ? '👑 مشرف' : '🧑‍🎓 طالب'}
             </span>
           </div>
         </div>

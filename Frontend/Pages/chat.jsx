@@ -401,6 +401,14 @@ const SUGGESTIONS = [
   "ما هو التكامل؟ 🔢"
 ];
 
+function formatTime(iso) {
+  try {
+    return new Date(iso).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 // 🛠️ نقل المكون خارج النطاق الداخلي لحل الـ ReferenceError بشكل قطعي
 function CodeBlock({ language, code }) {
   const [copied, setCopied] = useState(false);
@@ -648,7 +656,6 @@ export default function Chat() {
     let targetChatId = activeChatId;
     const username = user?.username || user?.name;
 
-    // تهيئة شات جديد بالباك إند عند إرسال أول رسالة من مسار النيو شات
     if (!targetChatId) {
       try {
         const params = new URLSearchParams();
@@ -660,7 +667,7 @@ export default function Chat() {
         const createData = await createRes.json();
         if (createData.success && createData.chat_id) {
           targetChatId = createData.chat_id;
-          skipHistoryFetch.current = true; // منع الوميض والتصفير للرسالة المرسلة حالياً
+          skipHistoryFetch.current = true;
           setActiveChatId(targetChatId);
           navigate(`/Chat/${targetChatId}`, { replace: true });
         } else {
