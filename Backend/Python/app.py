@@ -39,13 +39,14 @@ app.config['MAIL_DEFAULT_SENDER'] = 'hipermr9@gmail.com'
 
 ALLOWED_ORIGINS = [
     "https://www.almaharat2.com",
+    "https://almaharat2.com",
     "https://storage.almaharat2.com",
     "http://localhost:3000",
     "http://localhost:5173"
 ]
 
 CORS(app, resources={
-    r"/api/*": {
+    r"/*": {
         "origins": ALLOWED_ORIGINS,
         "allow_headers": [
             "Content-Type",
@@ -60,8 +61,25 @@ CORS(app, resources={
     }
 }, supports_credentials=True)
 
-# no after_request hook needed — flask-cors already sets
-# Access-Control-Allow-Origin / -Headers / -Methods / -Credentials / Vary
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    if origin and origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = ", ".join([
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "ngrok-skip-browser-warning",
+            "X-Admin-Token",
+            "X-Owner-Token"
+        ])
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+# Ensure all routes and preflight requests get the CORS headers.
 
 # =========================
 # 📂 Paths
