@@ -2,9 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import Cookies from "js-cookie";
 
-const BASE = window.location.hostname === "localhost"
-  ? "http://localhost:5000"
-  : "https://api.almaharat2.com";
+const BASE = "https://api.almaharat2.com";
 
 export default function Register() {
   const [form, setForm] = useState({ username: "", password: "" });
