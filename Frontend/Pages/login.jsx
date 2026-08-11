@@ -20,6 +20,8 @@ export default function Login() {
     try {
       const res = await fetch(`${BASE}/api/login-2fa`, {
         method: "POST",
+        mode: "cors",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userid: twoFAState.userid, code: twoFAState.code }),
       });
@@ -67,6 +69,8 @@ export default function Login() {
     try {
       const res = await fetch(`${BASE}/api/login`, {
         method: "POST",
+        mode: "cors",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: form.username, password: form.password }),
       });

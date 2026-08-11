@@ -50,11 +50,8 @@ CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
-    if origin:
-        if origin in ALLOWED_ORIGINS:
-            response.headers["Access-Control-Allow-Origin"] = origin
-        else:
-            response.headers["Access-Control-Allow-Origin"] = ", ".join(ALLOWED_ORIGINS)
+    if origin and origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = ", ".join([
             "Content-Type",
@@ -66,6 +63,7 @@ def add_cors_headers(response):
             "X-Owner-Token"
         ])
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Vary"] = "Origin"
     return response
 
 # Ensure all routes and preflight requests get the CORS headers.
