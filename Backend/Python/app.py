@@ -112,56 +112,221 @@ ADMIN_SECRET = "changeme"
 OWNER_SECRET = "OWNER_TOKEN_2026"
 
 # =========================
-# 🔧 JSON Helpers
+# 🗄️ Supabase database adapter
 # =========================
-def read_json(path):
-    if not os.path.exists(path):
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump([], f)
+# The API keeps the old read_json()/write_json() interface so the existing
+# routes do not need to be rewritten one by one. Data is now stored in
+# Supabase instead of Data/*.json files.
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://koncmjbfxaylnengciaj.supabase.co").rstrip("/")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
+
+if not SUPABASE_KEY:
+    raise RuntimeError(
+        "SUPABASE_SERVICE_ROLE_KEY is not set. Put your Supabase server key in an environment variable."
+    )
+
+SUPABASE_HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation",
+}
+
+
+def _table_for_path(path):
+    name = os.path.basename(str(path)).lower()
+    return {
+        "accounts.json": "Accounts",
+        "emails.json": "Emails",
+        "posts.json": "Posts",
+        "verification_requests.json": "Verify_Requests",
+        "online.json": "Online",
+        "in_workingpages.json": "WorkingPages",
+        "blockedpages.json": "BlockedPages",
+        "violations.json": "violations",
+        "twofa_codes.json": "twofa_codes",
+        "password_reset_tokens.json": "password_reset_tokens",
+        "password_reset_codes.json": "password_reset_codes",
+        "linkonlyposts_link.json": "linkonlyposts_link",
+        "email_verification_codes.json": "email_verification_codes",
+        "enrichments.json": "Enrichments",
+    }.get(name)
+
+
+TABLE_COLUMNS = {
+    "Accounts": {"userid", "username", "password", "points", "role", "verified", "chats", "followers", "lesson_progress", "following", "Friends", "nofication", "notification", "profile_picture", "is_developer", "mailEnabled", "twoFA", "is_banned", "notifications"},
+    "Emails": {"id", "userid", "email", "verified", "createdAt"},
+    "Posts": {"id", "userid", "username", "title", "description", "hashtags", "visibility", "media", "likes", "dislikes", "comments", "createdAt", "blocked"},
+    "Verify_Requests": {"id", "userid", "username", "email", "status", "submitted_at", "reviewed_at"},
+    "Online": {"userid", "username", "lastSeen"},
+    "WorkingPages": {"PageName", "id", "path", "title", "createdAt"},
+    "BlockedPages": {"PageName", "id", "path", "title", "createdAt"},
+    "violations": {"id", "created_at", "user_id", "userid", "reason", "status", "active"},
+    "twofa_codes": {"id", "created_at", "userid", "code"},
+    "password_reset_tokens": {"id", "created_at", "token_id", "user_id", "userid", "token", "password"},
+    "password_reset_codes": {"id", "created_at", "token_id", "code", "user_id", "userid", "username"},
+    "linkonlyposts_link": {"id", "created_at", "post_id", "token"},
+    "email_verification_codes": {"id", "created_at", "email", "code", "user_id", "userid"},
+    "Enrichments": {"id", "created_at", "title", "description", "type", "link", "file", "content", "createdAt", "updatedAt"},
+}
+
+
+def _request(method, table, **kwargs):
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    response = requests.request(method, url, headers=SUPABASE_HEADERS, timeout=30, **kwargs)
+    if not response.ok:
+        raise RuntimeError(f"Supabase {method} {table} failed ({response.status_code}): {response.text}")
+    if not response.content:
         return []
-    with open(path, 'r', encoding='utf-8') as f:
+    try:
+        return response.json()
+    except ValueError:
+        return []
+
+
+def _db_to_app(table, row):
+    row = dict(row)
+    # Supabase uses snake_case for a few timestamp columns while the old
+    # JSON format used createdAt.
+    if table in {"Emails", "twofa_codes", "password_reset_codes", "password_reset_tokens", "linkonlyposts_link", "email_verification_codes", "Enrichments"}:
+        if "created_at" in row and "createdAt" not in row:
+            row["createdAt"] = row["created_at"]
+    if table == "violations" and "user_id" in row and "userid" not in row:
+        row["userid"] = row["user_id"]
+    if table in {"twofa_codes", "email_verification_codes"} and "user_id" in row and "userid" not in row:
+        row["userid"] = row["user_id"]
+    if table in {"password_reset_tokens", "password_reset_codes"} and "user_id" in row and "userid" not in row:
+        row["userid"] = row["user_id"]
+    if table in {"WorkingPages", "BlockedPages"}:
+        # PageName remains the physical primary key for compatibility.
+        if not row.get("path") and row.get("PageName"):
+            try:
+                obj = json.loads(row["PageName"])
+                if isinstance(obj, dict):
+                    row.update(obj)
+            except Exception:
+                row["path"] = row["PageName"]
+        if not row.get("id"):
+            row["id"] = row.get("PageName") or str(uuid.uuid4())
+    return row
+
+
+def _app_to_db(table, item):
+    row = dict(item)
+    if table in {"Emails", "twofa_codes", "password_reset_codes", "password_reset_tokens", "linkonlyposts_link", "email_verification_codes", "Enrichments"}:
+        if "createdAt" in row:
+            row["created_at"] = row.pop("createdAt")
+    if table == "violations" and "userid" in row:
+        row["user_id"] = row.get("userid")
+    if table in {"twofa_codes", "email_verification_codes", "password_reset_tokens", "password_reset_codes"} and "userid" in row:
+        row["user_id"] = row.get("userid")
+    if table in {"WorkingPages", "BlockedPages"}:
+        row["PageName"] = row.get("path") or row.get("PageName") or json.dumps(item, ensure_ascii=False, sort_keys=True)
+    allowed = TABLE_COLUMNS[table]
+    return {k: v for k, v in row.items() if k in allowed}
+
+
+def read_json(path):
+    table = _table_for_path(path)
+    if not table:
+        # Only retained for code that may reference a non-database temporary path.
+        if not os.path.exists(path):
+            return []
         try:
-            return json.load(f)
-        except json.JSONDecodeError:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
             return []
 
-def write_json(path, data):
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    rows = _request("GET", table, params={"select": "*"})
+    return [_db_to_app(table, r) for r in rows]
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def write_json(path, data):
+    table = _table_for_path(path)
+    if not table:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        return
+
+    rows = [_app_to_db(table, item) for item in (data or [])]
+    # The old application treats each JSON file as the complete source of truth.
+    # Preserve that behavior while moving the storage to Supabase.
+    _request("DELETE", table, params={"id": "not.is.null"}) if "id" in TABLE_COLUMNS[table] else _request("DELETE", table, params={"PageName": "not.is.null"})
+    if rows:
+        _request("POST", table, json=rows)
+
+
+def safe_user(user):
+    return {k: v for k, v in user.items() if k != "password"}
+
 
 def get_user_from_session():
-    userid = session.get('userid')
+    """Return the currently logged-in user from the Flask session."""
+    userid = session.get("userid")
     if not userid:
         return None
+
     users = read_json(DB_PATH)
-    return next((u for u in users if str(u.get('userid')) == str(userid)), None)
+    return next(
+        (u for u in users if str(u.get("userid")) == str(userid)),
+        None,
+    )
 
 
 def cleanup_expired_codes(path, max_age_seconds=900):
-    codes = read_json(path)
+    """Remove expired verification/reset codes and return the remaining ones."""
+    records = read_json(path)
     now = datetime.now(timezone.utc)
     valid = []
-    for record in codes:
-        created = record.get('createdAt')
+
+    for record in records:
+        created = record.get("createdAt") or record.get("created_at")
+        if not created:
+            valid.append(record)
+            continue
+
         try:
-            if created and (now - datetime.fromisoformat(created)).total_seconds() <= max_age_seconds:
+            created_dt = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+
+            if (now - created_dt).total_seconds() <= max_age_seconds:
                 valid.append(record)
-        except Exception:
-            pass
-    if len(valid) != len(codes):
+        except (TypeError, ValueError):
+            continue
+
+    if len(valid) != len(records):
         write_json(path, valid)
+
     return valid
 
-def safe_user(user):
-    return {k: v for k, v in user.items() if k != 'password'}
 
-# Initialise files that must always exist
-for _p in [PASSWORD_RESET_CODES, PASSWORD_RESET_TOKENS, EMAIL_VERIFICATION_CODES, TWOFA_CODES, IN_WORKING_PAGES_PATH, BLOCKED_PAGES_PATH, ONLINE_PATH, LINKONLY_POSTS_PATH]:
-    if not os.path.exists(_p):
-        write_json(_p, [])
+def allowed_file(filename):
+    """Check whether an uploaded file uses an allowed extension."""
+    return (
+        bool(filename)
+        and "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+    )
+
+
+# Logical paths are kept because the existing route code uses them as keys for
+# the Supabase adapter. They no longer point to real database files.
+DB_PATH = "Accounts.json"
+EMAILS_PATH = "emails.json"
+PASSWORD_RESET_CODES = "password_reset_codes.json"
+PASSWORD_RESET_TOKENS = "password_reset_tokens.json"
+EMAIL_VERIFICATION_CODES = "email_verification_codes.json"
+TWOFA_CODES = "twofa_codes.json"
+IN_WORKING_PAGES_PATH = "In_WorkingPages.json"
+BLOCKED_PAGES_PATH = "BlockedPages.json"
+ONLINE_PATH = "online.json"
+LINKONLY_POSTS_PATH = "linkonlyposts_link.json"
+ENRICHMENTS_PATH = "enrichments.json"
+POSTS_PATH = "posts.json"
+VIOLATIONS_PATH = "violations.json"
+VERIFICATION_REQUESTS_PATH = "verification_requests.json"
 
 # =========================
 # 🔐 Admin guard
@@ -586,7 +751,6 @@ def start_scheduler():
 # =========================
 # 📂 Enrichments
 # =========================
-ENRICHMENTS_PATH = os.path.join(DATA_DIR, 'enrichments.json')
 DOCUMENTS_DIR    = os.path.join(DATA_DIR, 'documents')
 VIDEOS_DIR       = os.path.join(DATA_DIR, 'videos')
 
@@ -850,9 +1014,7 @@ def change_username():
 # =========================
 # 📮 Posts
 # =========================
-POSTS_PATH               = os.path.join(DATA_DIR, 'posts.json')
 POSTS_MEDIA              = os.path.join(DATA_DIR, 'posts_media')
-LINKONLY_POSTS_PATH      = os.path.join(DATA_DIR, 'linkonlyposts_link.json')
 os.makedirs(POSTS_MEDIA, exist_ok=True)
 
 ALLOWED_POST_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'webm', 'mov'}
@@ -1377,14 +1539,8 @@ def show_password_token(userid, token):
 # =========================
 # ✅ Verification System
 # =========================
-FOLLOWERS_PATH             = os.path.join(DATA_DIR, 'Accounts.json')
-LESSON_PROGRESS_PATH       = os.path.join(DATA_DIR, 'Accounts.json')
-VIOLATIONS_PATH            = os.path.join(DATA_DIR, 'violations.json')
-VERIFICATION_REQUESTS_PATH = os.path.join(DATA_DIR, 'verification_requests.json')
-
-for _p in [FOLLOWERS_PATH, LESSON_PROGRESS_PATH, VIOLATIONS_PATH, VERIFICATION_REQUESTS_PATH]:
-    if not os.path.exists(_p):
-        write_json(_p, [])
+FOLLOWERS_PATH = DB_PATH
+LESSON_PROGRESS_PATH = DB_PATH
 
 MIN_FOLLOWERS = 10
 MIN_LESSONS   = 5
@@ -1854,7 +2010,7 @@ def chat():
             "chat_id": chat_id
         }), 429 if is_quota_error else 500
     
-ACCOUNTS_FILE = Path(DB_PATH)
+ACCOUNTS_FILE = None
 
 def load_accounts():
     """
