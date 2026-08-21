@@ -5,7 +5,6 @@ import uuid
 from datetime import datetime, timezone
 from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory, session
-from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.serving import WSGIRequestHandler
@@ -16,10 +15,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
-from pathlib import Path
 import hmac
 
-app = Flask(__name__)   # ← KILLS everything above it
+app = Flask(__name__)
 
 app.secret_key = "gorta-super-secret-key-2026"
 
@@ -45,8 +43,12 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173"
 ]
 
-# CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)   ← delete this line
-
+# FIX #9 — There were TWO identical @app.after_request handlers registered.
+#           Flask runs every registered after_request hook on every response,
+#           so this doubled the Access-Control-Allow-Origin header on every
+#           request (including preflight OPTIONS). Chrome treats a duplicated
+#           ACAO header as invalid and reports it as a CORS failure even
+#           though a response was actually returned. Only ONE handler now.
 @app.after_request
 def add_cors_headers(response):
     origin = request.headers.get("Origin")
@@ -66,49 +68,24 @@ def add_cors_headers(response):
         response.headers["Vary"] = "Origin"
     return response
 
-@app.after_request
-def add_cors_headers(response):
-    origin = request.headers.get("Origin")
-    if origin and origin in ALLOWED_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Headers"] = ", ".join([
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "Accept",
-            "ngrok-skip-browser-warning",
-            "X-Admin-Token",
-            "X-Owner-Token"
-        ])
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Vary"] = "Origin"
-    return response
-
-# Ensure all routes and preflight requests get the CORS headers.
-
 # =========================
-# 📂 Paths
+# 📂 Media upload paths
 # =========================
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR   = os.path.join(BASE_DIR, 'Data')
-IMAGES_DIR = os.path.join(DATA_DIR, 'images')
-USERS_ICON_DIR        = os.path.join(DATA_DIR, 'users_icon')
+# NOTE: these directories are for actual uploaded FILES (images/videos/docs),
+# not app data. App data (accounts, posts, etc.) lives entirely in Supabase —
+# see the adapter below. On Render's free tier this filesystem is ephemeral,
+# so uploaded files will not survive a redeploy/restart; that's a separate
+# concern from the data-storage migration but worth knowing.
+BASE_DIR       = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR       = os.path.join(BASE_DIR, 'Data')
+IMAGES_DIR     = os.path.join(DATA_DIR, 'images')
+USERS_ICON_DIR = os.path.join(DATA_DIR, 'users_icon')
+DOCUMENTS_DIR  = os.path.join(DATA_DIR, 'documents')
+VIDEOS_DIR     = os.path.join(DATA_DIR, 'videos')
+POSTS_MEDIA    = os.path.join(DATA_DIR, 'posts_media')
 
-os.makedirs(DATA_DIR,   exist_ok=True)
-os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(USERS_ICON_DIR, exist_ok=True)
-
-DB_PATH               = os.path.join(DATA_DIR, 'Accounts.json')
-EMAILS_PATH           = os.path.join(DATA_DIR, 'emails.json')
-PASSWORD_RESET_CODES  = os.path.join(DATA_DIR, 'password_reset_codes.json')
-PASSWORD_RESET_TOKENS = os.path.join(DATA_DIR, 'password_reset_tokens.json')
-EMAIL_VERIFICATION_CODES = os.path.join(DATA_DIR, 'email_verification_codes.json')
-TWOFA_CODES           = os.path.join(DATA_DIR, 'twofa_codes.json')
-IN_WORKING_PAGES_PATH = os.path.join(DATA_DIR, 'In_WorkingPages.json')
-BLOCKED_PAGES_PATH    = os.path.join(DATA_DIR, 'BlockedPages.json')
-ONLINE_PATH           = os.path.join(DATA_DIR, 'online.json')
-LINKONLY_POSTS_PATH   = os.path.join(DATA_DIR, 'linkonlyposts_link.json')
+for _dir in (DATA_DIR, IMAGES_DIR, USERS_ICON_DIR, DOCUMENTS_DIR, VIDEOS_DIR, POSTS_MEDIA):
+    os.makedirs(_dir, exist_ok=True)
 
 SENDER_EMAIL    = "hipermr9@gmail.com"
 SENDER_PASSWORD = "fguj cmet zxgq fllm"
@@ -131,11 +108,8 @@ ADMIN_SECRET = "changeme"
 OWNER_SECRET = "OWNER_TOKEN_2026"
 
 # =========================
-# 🗄️ Supabase database adapter
+# 🗄️ Supabase database adapter (sole data store — no JSON fallback)
 # =========================
-# The API keeps the old read_json()/write_json() interface so the existing
-# routes do not need to be rewritten one by one. Data is now stored in
-# Supabase instead of Data/*.json files.
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://koncmjbfxaylnengciaj.supabase.co").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
 
@@ -150,6 +124,24 @@ SUPABASE_HEADERS = {
     "Content-Type": "application/json",
     "Prefer": "return=representation",
 }
+
+# Logical keys used throughout the route code below. These map 1:1 to
+# Supabase tables via _table_for_path — they are NOT filesystem paths
+# anymore, just lookup keys kept for minimal diff against the old routes.
+DB_PATH                    = "accounts.json"
+EMAILS_PATH                = "emails.json"
+PASSWORD_RESET_CODES       = "password_reset_codes.json"
+PASSWORD_RESET_TOKENS      = "password_reset_tokens.json"
+EMAIL_VERIFICATION_CODES   = "email_verification_codes.json"
+TWOFA_CODES                = "twofa_codes.json"
+IN_WORKING_PAGES_PATH      = "in_workingpages.json"
+BLOCKED_PAGES_PATH         = "blockedpages.json"
+ONLINE_PATH                = "online.json"
+LINKONLY_POSTS_PATH        = "linkonlyposts_link.json"
+ENRICHMENTS_PATH           = "enrichments.json"
+POSTS_PATH                 = "posts.json"
+VIOLATIONS_PATH            = "violations.json"
+VERIFICATION_REQUESTS_PATH = "verification_requests.json"
 
 
 def _table_for_path(path):
@@ -173,15 +165,21 @@ def _table_for_path(path):
 
 
 TABLE_COLUMNS = {
-    "Accounts": {"userid", "username", "password", "points", "role", "verified", "chats", "followers", "lesson_progress", "following", "Friends", "nofication", "notification", "profile_picture", "is_developer", "mailEnabled", "twoFA", "is_banned", "notifications"},
+    "Accounts": {"userid", "username", "password", "points", "role", "verified", "chats", "followers", "lesson_progress", "following", "Friends", "nofication", "notification", "profile_picture", "is_developer", "mailEnabled", "twoFA", "is_banned", "notifications", "private_chats"},
     "Emails": {"id", "userid", "email", "verified", "createdAt"},
-    "Posts": {"id", "userid", "username", "title", "description", "hashtags", "visibility", "media", "likes", "dislikes", "comments", "createdAt", "blocked"},
+    "Posts": {"id", "userid", "username", "title", "description", "hashtags", "visibility", "media", "likes", "dislikes", "comments", "createdAt", "blocked", "linkToken"},
     "Verify_Requests": {"id", "userid", "username", "email", "status", "submitted_at", "reviewed_at"},
     "Online": {"userid", "username", "lastSeen"},
     "WorkingPages": {"PageName", "id", "path", "title", "createdAt"},
     "BlockedPages": {"PageName", "id", "path", "title", "createdAt"},
     "violations": {"id", "created_at", "user_id", "userid", "reason", "status", "active"},
-    "twofa_codes": {"id", "created_at", "userid", "code"},
+    # FIX #10 — this whitelist said "userid" but _app_to_db() renames the
+    #           field to "user_id" for this table before it gets here. The
+    #           filter below then dropped "user_id" (not in the set) and
+    #           kept the now-orphaned "userid" key, so every INSERT sent a
+    #           column ("userid") that doesn't exist in the real Supabase
+    #           table, causing: PGRST204 Could not find the 'userid' column.
+    "twofa_codes": {"id", "created_at", "user_id", "code"},
     "password_reset_tokens": {"id", "created_at", "token_id", "user_id", "userid", "token", "password"},
     "password_reset_codes": {"id", "created_at", "token_id", "code", "user_id", "userid", "username"},
     "linkonlyposts_link": {"id", "created_at", "post_id", "token"},
@@ -205,8 +203,6 @@ def _request(method, table, **kwargs):
 
 def _db_to_app(table, row):
     row = dict(row)
-    # Supabase uses snake_case for a few timestamp columns while the old
-    # JSON format used createdAt.
     if table in {"Emails", "twofa_codes", "password_reset_codes", "password_reset_tokens", "linkonlyposts_link", "email_verification_codes", "Enrichments"}:
         if "created_at" in row and "createdAt" not in row:
             row["createdAt"] = row["created_at"]
@@ -217,7 +213,6 @@ def _db_to_app(table, row):
     if table in {"password_reset_tokens", "password_reset_codes"} and "user_id" in row and "userid" not in row:
         row["userid"] = row["user_id"]
     if table in {"WorkingPages", "BlockedPages"}:
-        # PageName remains the physical primary key for compatibility.
         if not row.get("path") and row.get("PageName"):
             try:
                 obj = json.loads(row["PageName"])
@@ -246,38 +241,54 @@ def _app_to_db(table, item):
 
 
 def read_json(path):
+    """Read all rows for the Supabase table this logical key maps to.
+    No local-file fallback — Supabase is the only data store."""
     table = _table_for_path(path)
     if not table:
-        # Only retained for code that may reference a non-database temporary path.
-        if not os.path.exists(path):
-            return []
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return []
-
+        raise RuntimeError(f"Unknown data key '{path}' — no Supabase table mapping for it.")
     rows = _request("GET", table, params={"select": "*"})
     return [_db_to_app(table, r) for r in rows]
 
 
 def write_json(path, data):
+    """Overwrite all rows for the Supabase table this logical key maps to
+    (delete-then-insert, matching the old JSON file's replace-whole-file
+    semantics). No local-file fallback."""
     table = _table_for_path(path)
     if not table:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-        return
+        raise RuntimeError(f"Unknown data key '{path}' — no Supabase table mapping for it.")
 
     rows = [_app_to_db(table, item) for item in (data or [])]
-    # The old application treats each JSON file as the complete source of truth.
-    # Preserve that behavior while moving the storage to Supabase.
-    _request("DELETE", table, params={"id": "not.is.null"}) if "id" in TABLE_COLUMNS[table] else _request("DELETE", table, params={"PageName": "not.is.null"})
+    if "id" in TABLE_COLUMNS[table]:
+        _request("DELETE", table, params={"id": "not.is.null"})
+    else:
+        _request("DELETE", table, params={"PageName": "not.is.null"})
     if rows:
         _request("POST", table, json=rows)
 
 
 def safe_user(user):
-    return {k: v for k, v in user.items() if k != "password"}
+    u = {k: v for k, v in user.items() if k not in {'password', 'private_chats'}}
+
+    followers = u.get('followers')
+    if isinstance(followers, dict):
+        u['followers'] = len(followers)
+    elif not isinstance(followers, int):
+        u['followers'] = 0
+
+    following = u.get('following')
+    if isinstance(following, dict):
+        u['following'] = len(following)
+    elif not isinstance(following, int):
+        u['following'] = 0
+
+    friends = u.get('Friends')
+    if isinstance(friends, list):
+        u['friends_count'] = len(normalize_id_list(friends))
+    else:
+        u['friends_count'] = 0
+
+    return u
 
 
 def get_user_from_session():
@@ -330,23 +341,6 @@ def allowed_file(filename):
     )
 
 
-# Logical paths are kept because the existing route code uses them as keys for
-# the Supabase adapter. They no longer point to real database files.
-DB_PATH = "Accounts.json"
-EMAILS_PATH = "emails.json"
-PASSWORD_RESET_CODES = "password_reset_codes.json"
-PASSWORD_RESET_TOKENS = "password_reset_tokens.json"
-EMAIL_VERIFICATION_CODES = "email_verification_codes.json"
-TWOFA_CODES = "twofa_codes.json"
-IN_WORKING_PAGES_PATH = "In_WorkingPages.json"
-BLOCKED_PAGES_PATH = "BlockedPages.json"
-ONLINE_PATH = "online.json"
-LINKONLY_POSTS_PATH = "linkonlyposts_link.json"
-ENRICHMENTS_PATH = "enrichments.json"
-POSTS_PATH = "posts.json"
-VIOLATIONS_PATH = "violations.json"
-VERIFICATION_REQUESTS_PATH = "verification_requests.json"
-
 # =========================
 # 🔐 Admin guard
 # =========================
@@ -372,34 +366,27 @@ def require_admin(f):
 def require_owner(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # First allow an explicit owner token (useful for scripts)
         token = request.headers.get('X-Owner-Token', '')
         owner_token = os.environ.get('OWNER_TOKEN')
-
-        print("!!! THIS FUNCTION IS RUNNING !!!")
-        print(f"DEBUG received: [{token}]")
-        print(f"DEBUG expected: [{owner_token}]")
-        print(f"DEBUG match: {token == owner_token}")
 
         if owner_token and token and hmac.compare_digest(token, owner_token):
             return f(*args, **kwargs)
 
-        # Otherwise allow an admin token too
         admin_token = os.environ.get('ADMIN_TOKEN')
         admin_header = request.headers.get('X-Admin-Token', '')
         if admin_token and admin_header and hmac.compare_digest(admin_header, admin_token):
             return f(*args, **kwargs)
 
-        # Otherwise require a logged-in account with role == 'owner'
         userid = session.get('userid')
         if userid:
             users = read_json(DB_PATH)
             user = next((u for u in users if u.get('userid') == userid), None)
             if user and user.get('role') == 'owner':
                 return f(*args, **kwargs)
-                
+
         return jsonify({"error": "Unauthorized"}), 403
     return decorated
+
 
 def require_admin_or_owner(f):
     @wraps(f)
@@ -409,11 +396,6 @@ def require_admin_or_owner(f):
 
         admin_secret = os.environ.get("ADMIN_TOKEN")
         owner_secret = os.environ.get("OWNER_TOKEN")
-
-        print("Admin Header :", admin_header)
-        print("Admin Secret :", admin_secret)
-        print("Owner Header :", owner_header)
-        print("Owner Secret :", owner_secret)
 
         if admin_secret and hmac.compare_digest(admin_header or "", admin_secret):
             return f(*args, **kwargs)
@@ -483,142 +465,154 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    data     = request.json or {}
-    username = (data.get('username') or '').strip().lower()
-    password = data.get('password') or ''
-
-    if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
-
-    accounts = read_json(DB_PATH)
-    user     = next((acc for acc in accounts if acc['username'] == username), None)
-
-    if not user:
-        return jsonify({"error": "Invalid username or password"}), 401
-
-    if user.get("is_banned"):
-        return jsonify({"error": "This account is banned"}), 402
-
-    if not check_password_hash(user['password'], password):
-        return jsonify({"error": "Invalid username or password"}), 401
-
-    if user.get("role") == "owner":
-        session["OWNER_TOKEN"] = "OWNER_TOKEN_2026"
-
-    if user.get("twoFA"):
-        email_record = next((e for e in read_json(EMAILS_PATH)
-                             if str(e.get('userid')) == str(user['userid'])), None)
-        if not email_record or not email_record.get('verified', False):
-            return jsonify({"error": "التحقق الثنائي مفعل ولا يوجد بريد إلكتروني موثق. رجاءً تحقق من بريدك أولاً."}), 400
-
-        code = str(random.randint(100000, 999999))
-        codes = [c for c in read_json(TWOFA_CODES) if str(c.get('userid')) != str(user['userid'])]
-        codes.append({
-            "userid": user['userid'],
-            "code": code,
-            "createdAt": datetime.now(timezone.utc).isoformat()
-        })
-        write_json(TWOFA_CODES, codes)
-        send_email(email_record['email'], "كود الدخول إلى منصة المهارات", f"رمز التحقق الخاص بك هو: {code}")
-        return jsonify({"twoFA_required": True, "userid": user["userid"]}), 200
-
-    session["userid"] = user["userid"]
-    session["DONT-SHARE-THAT-COOKIE"] = user
     try:
-        update_online(user["userid"], user.get("username", ""))
-    except Exception:
-        pass
-    return jsonify({"user": safe_user(user)}), 200
+        data     = request.json or {}
+        username = (data.get('username') or '').strip().lower()
+        password = data.get('password') or ''
+
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+
+        accounts = read_json(DB_PATH)
+        user     = next((acc for acc in accounts if acc['username'] == username), None)
+
+        if not user:
+            return jsonify({"error": "Invalid username or password"}), 401
+
+        if user.get("is_banned"):
+            return jsonify({"error": "This account is banned"}), 402
+
+        if not check_password_hash(user['password'], password):
+            return jsonify({"error": "Invalid username or password"}), 401
+
+        if user.get("role") == "owner":
+            session["OWNER_TOKEN"] = "OWNER_TOKEN_2026"
+
+        if user.get("twoFA"):
+            email_record = next((e for e in read_json(EMAILS_PATH)
+                                 if str(e.get('userid')) == str(user['userid'])), None)
+            if not email_record or not email_record.get('verified', False):
+                return jsonify({"error": "التحقق الثنائي مفعل ولا يوجد بريد إلكتروني موثق. رجاءً تحقق من بريدك أولاً."}), 400
+
+            code = str(random.randint(100000, 999999))
+            codes = [c for c in read_json(TWOFA_CODES) if str(c.get('userid')) != str(user['userid'])]
+            codes.append({
+                "userid": user['userid'],
+                "code": code,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            })
+            write_json(TWOFA_CODES, codes)
+            send_email(email_record['email'], "كود الدخول إلى منصة المهارات", f"رمز التحقق الخاص بك هو: {code}")
+            return jsonify({"twoFA_required": True, "userid": user["userid"]}), 200
+
+        session["userid"] = user["userid"]
+        session["DONT-SHARE-THAT-COOKIE"] = user
+        try:
+            update_online(user["userid"], user.get("username", ""))
+        except Exception:
+            pass
+        return jsonify({"user": safe_user(user)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/login-2fa', methods=['POST'])
 def login_2fa():
-    data   = request.json or {}
-    userid = str(data.get('userid') or '').strip()
-    code   = str(data.get('code') or '').strip()
-
-    if not userid or not code:
-        return jsonify({"error": "userid and code are required"}), 400
-
-    codes = cleanup_expired_codes(TWOFA_CODES)
-    record = next((c for c in codes if str(c.get('userid')) == userid and c.get('code') == code), None)
-    if not record:
-        return jsonify({"error": "Invalid or expired verification code"}), 400
-
-    users = read_json(DB_PATH)
-    user  = next((acc for acc in users if str(acc.get('userid')) == userid), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == userid), None)
-    if not email_record or not email_record.get('verified', False):
-        return jsonify({"error": "Email must be verified before logging in with 2FA"}), 400
-
-    session["userid"] = user["userid"]
-    session["DONT-SHARE-THAT-COOKIE"] = user
     try:
-        update_online(user["userid"], user.get("username", ""))
-    except Exception:
-        pass
+        data   = request.json or {}
+        userid = str(data.get('userid') or '').strip()
+        code   = str(data.get('code') or '').strip()
 
-    remaining = [c for c in codes if not (str(c.get('userid')) == userid and c.get('code') == code)]
-    write_json(TWOFA_CODES, remaining)
-    return jsonify({"user": safe_user(user)}), 200
+        if not userid or not code:
+            return jsonify({"error": "userid and code are required"}), 400
+
+        codes = cleanup_expired_codes(TWOFA_CODES)
+        record = next((c for c in codes if str(c.get('userid')) == userid and c.get('code') == code), None)
+        if not record:
+            return jsonify({"error": "Invalid or expired verification code"}), 400
+
+        users = read_json(DB_PATH)
+        user  = next((acc for acc in users if str(acc.get('userid')) == userid), None)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == userid), None)
+        if not email_record or not email_record.get('verified', False):
+            return jsonify({"error": "Email must be verified before logging in with 2FA"}), 400
+
+        session["userid"] = user["userid"]
+        session["DONT-SHARE-THAT-COOKIE"] = user
+        try:
+            update_online(user["userid"], user.get("username", ""))
+        except Exception:
+            pass
+
+        remaining = [c for c in codes if not (str(c.get('userid')) == userid and c.get('code') == code)]
+        write_json(TWOFA_CODES, remaining)
+        return jsonify({"user": safe_user(user)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/verify-email', methods=['POST'])
 def verify_email():
-    data   = request.json or {}
-    userid = str(data.get('userid') or '').strip()
-    code   = str(data.get('code') or '').strip()
+    try:
+        data   = request.json or {}
+        userid = str(data.get('userid') or '').strip()
+        code   = str(data.get('code') or '').strip()
 
-    if not userid or not code:
-        return jsonify({"error": "userid and code are required"}), 400
+        if not userid or not code:
+            return jsonify({"error": "userid and code are required"}), 400
 
-    records = read_json(EMAIL_VERIFICATION_CODES)
-    record  = next((r for r in records if str(r.get('userid')) == userid and r.get('code') == code), None)
-    if not record:
-        return jsonify({"error": "Invalid or expired verification code"}), 400
+        records = read_json(EMAIL_VERIFICATION_CODES)
+        record  = next((r for r in records if str(r.get('userid')) == userid and r.get('code') == code), None)
+        if not record:
+            return jsonify({"error": "Invalid or expired verification code"}), 400
 
-    emails = read_json(EMAILS_PATH)
-    email_record = next((e for e in emails if str(e.get('userid')) == userid), None)
-    if not email_record:
-        return jsonify({"error": "Email record not found"}), 404
+        emails = read_json(EMAILS_PATH)
+        email_record = next((e for e in emails if str(e.get('userid')) == userid), None)
+        if not email_record:
+            return jsonify({"error": "Email record not found"}), 404
 
-    email_record['verified'] = True
-    write_json(EMAILS_PATH, emails)
-    write_json(EMAIL_VERIFICATION_CODES, [r for r in records if not (str(r.get('userid')) == userid and r.get('code') == code)])
-    return jsonify({"success": True, "email": email_record.get('email')}), 200
+        email_record['verified'] = True
+        write_json(EMAILS_PATH, emails)
+        write_json(EMAIL_VERIFICATION_CODES, [r for r in records if not (str(r.get('userid')) == userid and r.get('code') == code)])
+        return jsonify({"success": True, "email": email_record.get('email')}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-profile-picture', methods=['POST'])
 def upload_profile_picture():
-    if 'file' not in request.files:
-        return jsonify({"error": "File required"}), 400
+    try:
+        if 'file' not in request.files:
+            return jsonify({"error": "File required"}), 400
 
-    file   = request.files['file']
-    userid = str(request.form.get('userid') or '').strip()
+        file   = request.files['file']
+        userid = str(request.form.get('userid') or '').strip()
 
-    if not userid:
-        return jsonify({"error": "userid is required"}), 400
-    if file.filename == '':
-        return jsonify({"error": "File name required"}), 400
-    if not allowed_file(file.filename):
-        return jsonify({"error": "File type not allowed"}), 400
+        if not userid:
+            return jsonify({"error": "userid is required"}), 400
+        if file.filename == '':
+            return jsonify({"error": "File name required"}), 400
+        if not allowed_file(file.filename):
+            return jsonify({"error": "File type not allowed"}), 400
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if str(u.get('userid')) == userid), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if str(u.get('userid')) == userid), None)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    username = user.get('username') or str(userid)
-    user_dir = os.path.join(USERS_ICON_DIR, username)
-    os.makedirs(user_dir, exist_ok=True)
-    filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
-    save_path = os.path.join(user_dir, filename)
-    file.save(save_path)
+        username = user.get('username') or str(userid)
+        user_dir = os.path.join(USERS_ICON_DIR, username)
+        os.makedirs(user_dir, exist_ok=True)
+        filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
+        save_path = os.path.join(user_dir, filename)
+        file.save(save_path)
 
-    pic_url = f"{request.host_url.rstrip('/')}/uploads/users_icon/{username}/{filename}"
-    user['profile_picture'] = pic_url
-    write_json(DB_PATH, users)
-    return jsonify({"success": True, "profile_picture": pic_url}), 200
+        pic_url = f"{request.host_url.rstrip('/')}/uploads/users_icon/{username}/{filename}"
+        user['profile_picture'] = pic_url
+        write_json(DB_PATH, users)
+        return jsonify({"success": True, "profile_picture": pic_url}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/admin/users", methods=["GET"])
 @require_admin
@@ -768,14 +762,8 @@ def start_scheduler():
     scheduler.start()
 
 # =========================
-# 📂 Enrichments
+# 📂 Enrichments (file uploads)
 # =========================
-DOCUMENTS_DIR    = os.path.join(DATA_DIR, 'documents')
-VIDEOS_DIR       = os.path.join(DATA_DIR, 'videos')
-
-os.makedirs(DOCUMENTS_DIR, exist_ok=True)
-os.makedirs(VIDEOS_DIR,    exist_ok=True)
-
 ALLOWED_ENRICHMENT_EXTENSIONS = {
     'png', 'jpg', 'jpeg', 'gif', 'webp',
     'pdf', 'mp4', 'webm', 'mov', 'mp3',
@@ -924,7 +912,6 @@ def get_enrichment_by_id(enrichment_id):
 def health():
     if request.method == "OPTIONS":
         return "", 204
-
     return jsonify({"status": "healthy"}), 200
 
 # =========================
@@ -932,110 +919,119 @@ def health():
 # =========================
 @app.route("/api/get-settings/<string:userid>", methods=["GET"])
 def get_settings(userid):
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if u["userid"] == userid), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    try:
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if u["userid"] == userid), None)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
+        email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
 
-    return jsonify({
-        "mailEnabled": user.get("mailEnabled", False),
-        "twoFA":       user.get("twoFA",       False),
-        "email":       email_record.get("email") if email_record else "",
-        "emailVerified": bool(email_record and email_record.get("verified", False)),
-        "profile_picture": user.get("profile_picture", "")
-    })
+        return jsonify({
+            "mailEnabled": user.get("mailEnabled", False),
+            "twoFA":       user.get("twoFA",       False),
+            "email":       email_record.get("email") if email_record else "",
+            "emailVerified": bool(email_record and email_record.get("verified", False)),
+            "profile_picture": user.get("profile_picture", "")
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/update-setting", methods=["POST"])
 def update_setting():
-    data   = request.get_json() or {}
-    userid = data.get("userid")
-    key    = data.get("key")
-    value  = data.get("value")
+    try:
+        data   = request.get_json() or {}
+        userid = data.get("userid")
+        key    = data.get("key")
+        value  = data.get("value")
 
-    if key not in ["mailEnabled", "twoFA"]:
-        return jsonify({"error": "Invalid setting"}), 400
+        if key not in ["mailEnabled", "twoFA"]:
+            return jsonify({"error": "Invalid setting"}), 400
 
-    users = read_json(DB_PATH)
-    email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
-    for user in users:
-        if user["userid"] == userid:
-            if key == "twoFA":
-                if value and not (email_record and email_record.get("verified", False)):
-                    return jsonify({"error": "A verified email is required before enabling 2FA"}), 400
-                user["twoFA"] = bool(value)
-            else:
-                user[key] = bool(value)
-            break
-    else:
-        return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        email_record = next((e for e in read_json(EMAILS_PATH) if str(e.get('userid')) == str(userid)), None)
+        for user in users:
+            if user["userid"] == userid:
+                if key == "twoFA":
+                    if value and not (email_record and email_record.get("verified", False)):
+                        return jsonify({"error": "A verified email is required before enabling 2FA"}), 400
+                    user["twoFA"] = bool(value)
+                else:
+                    user[key] = bool(value)
+                break
+        else:
+            return jsonify({"error": "User not found"}), 404
 
-    write_json(DB_PATH, users)
-    return jsonify({"success": True})
+        write_json(DB_PATH, users)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/delete-account", methods=["POST"])
 def delete_account():
-    # FIX #5 — added `or {}`
-    data      = request.get_json() or {}
-    userid    = data.get("userid")
-    users     = read_json(DB_PATH)
-    new_users = [u for u in users if u["userid"] != userid]
-    if len(new_users) == len(users):
-        return jsonify({"error": "User not found"}), 404
-    write_json(DB_PATH, new_users)
-    return jsonify({"success": True})
+    try:
+        data      = request.get_json() or {}
+        userid    = data.get("userid")
+        users     = read_json(DB_PATH)
+        new_users = [u for u in users if u["userid"] != userid]
+        if len(new_users) == len(users):
+            return jsonify({"error": "User not found"}), 404
+        write_json(DB_PATH, new_users)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/change-password", methods=["POST"])
 def change_password():
-    # FIX #5 — added `or {}`
-    data   = request.get_json() or {}
-    userid = data.get("userid")
-    old    = data.get("oldPassword") or ""
-    new    = data.get("newPassword") or ""
+    try:
+        data   = request.get_json() or {}
+        userid = data.get("userid")
+        old    = data.get("oldPassword") or ""
+        new    = data.get("newPassword") or ""
 
-    # FIX #6 — validate minimum length before hashing
-    if len(new) < 6:
-        return jsonify({"error": "New password must be at least 6 characters"}), 400
+        if len(new) < 6:
+            return jsonify({"error": "New password must be at least 6 characters"}), 400
 
-    users = read_json(DB_PATH)
-    for user in users:
-        if user["userid"] == userid:
-            if not check_password_hash(user["password"], old):
-                return jsonify({"error": "Wrong password"}), 400
-            user["password"] = generate_password_hash(new)
-            write_json(DB_PATH, users)
-            return jsonify({"success": True})
-    return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        for user in users:
+            if user["userid"] == userid:
+                if not check_password_hash(user["password"], old):
+                    return jsonify({"error": "Wrong password"}), 400
+                user["password"] = generate_password_hash(new)
+                write_json(DB_PATH, users)
+                return jsonify({"success": True})
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/change-username", methods=["POST"])
 def change_username():
-    data        = request.get_json() or {}
-    userid      = data.get("userid")
-    newUsername = (data.get("newUsername") or "").strip()
-    if not newUsername:
-        return jsonify({"error": "Empty name"}), 400
-    if newUsername != newUsername.lower():
-        return jsonify({"error": "Username must be lowercase only"}), 400
-    if not re.match(r'^[a-z0-9_]+$', newUsername):
-        return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
+    try:
+        data        = request.get_json() or {}
+        userid      = data.get("userid")
+        newUsername = (data.get("newUsername") or "").strip()
+        if not newUsername:
+            return jsonify({"error": "Empty name"}), 400
+        if newUsername != newUsername.lower():
+            return jsonify({"error": "Username must be lowercase only"}), 400
+        if not re.match(r'^[a-z0-9_]+$', newUsername):
+            return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
 
-    users = read_json(DB_PATH)
-    if any(u["username"] == newUsername for u in users):
-        return jsonify({"error": "Username already taken"}), 400
-    for user in users:
-        if user["userid"] == userid:
-            user["username"] = newUsername
-            write_json(DB_PATH, users)
-            return jsonify({"success": True})
-    return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        if any(u["username"] == newUsername for u in users):
+            return jsonify({"error": "Username already taken"}), 400
+        for user in users:
+            if user["userid"] == userid:
+                user["username"] = newUsername
+                write_json(DB_PATH, users)
+                return jsonify({"success": True})
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =========================
 # 📮 Posts
 # =========================
-POSTS_MEDIA              = os.path.join(DATA_DIR, 'posts_media')
-os.makedirs(POSTS_MEDIA, exist_ok=True)
-
 ALLOWED_POST_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'webm', 'mov'}
 
 def allowed_post_file(filename):
@@ -1192,7 +1188,6 @@ def like_post(post_id):
             if userid in post['dislikes']:
                 post['dislikes'].remove(userid)
 
-            # إرسال إشعار لصاحب البوست
             if str(userid) != str(post['userid']):
                 users = read_json(DB_PATH)
 
@@ -1276,7 +1271,6 @@ def comment_on_post(post_id):
 
         post['comments'].append(comment)
 
-        # إرسال إشعار لصاحب البوست
         if str(userid) != str(post['userid']):
 
             users = read_json(DB_PATH)
@@ -1361,20 +1355,23 @@ def update_online(userid, username=''):
 
 @app.route('/api/pages/check', methods=['GET'])
 def api_check_page():
-    path = (request.args.get('path') or '').strip()
-    if not path:
-        return jsonify({"error": "path required"}), 400
-    in_working = read_json(IN_WORKING_PAGES_PATH)
-    for e in in_working:
-        p = e.get('path', '')
-        if p == path or p in path or path in p:
-            return jsonify({"type": "in_working", "entry": e}), 426
-    blocked = read_json(BLOCKED_PAGES_PATH)
-    for e in blocked:
-        p = e.get('path', '')
-        if p == path or p in path or path in p:
-            return jsonify({"type": "blocked", "entry": e}), 426
-    return jsonify({"type": "ok"}), 200
+    try:
+        path = (request.args.get('path') or '').strip()
+        if not path:
+            return jsonify({"error": "path required"}), 400
+        in_working = read_json(IN_WORKING_PAGES_PATH)
+        for e in in_working:
+            p = e.get('path', '')
+            if p == path or p in path or path in p:
+                return jsonify({"type": "in_working", "entry": e}), 426
+        blocked = read_json(BLOCKED_PAGES_PATH)
+        for e in blocked:
+            p = e.get('path', '')
+            if p == path or p in path or path in p:
+                return jsonify({"type": "blocked", "entry": e}), 426
+        return jsonify({"type": "ok"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/owner/pages/list', methods=['GET'])
@@ -1426,141 +1423,154 @@ def api_delete_page(ptype, entry_id):
 
 @app.route('/api/online_count', methods=['GET'])
 def api_online_count():
-    entries = read_json(ONLINE_PATH)
-    now = datetime.now(timezone.utc)
-    valid = []
-    for e in entries:
-        try:
-            last = datetime.fromisoformat(e.get('lastSeen'))
-            if (now - last).total_seconds() <= 10 * 60:
-                valid.append(e)
-        except Exception:
-            pass
-    # optionally cleanup stale entries
-    write_json(ONLINE_PATH, valid)
-    return jsonify({"count": len(valid)}), 200
+    try:
+        entries = read_json(ONLINE_PATH)
+        now = datetime.now(timezone.utc)
+        valid = []
+        for e in entries:
+            try:
+                last = datetime.fromisoformat(e.get('lastSeen'))
+                if (now - last).total_seconds() <= 10 * 60:
+                    valid.append(e)
+            except Exception:
+                pass
+        write_json(ONLINE_PATH, valid)
+        return jsonify({"count": len(valid)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/online/ping', methods=['POST'])
 def api_online_ping():
-    data = request.get_json() or {}
-    userid = data.get('userid')
-    username = data.get('username', '')
-    if not userid:
-        return jsonify({"error": "userid required"}), 400
-    update_online(userid, username)
-    return jsonify({"success": True}), 200
+    try:
+        data = request.get_json() or {}
+        userid = data.get('userid')
+        username = data.get('username', '')
+        if not userid:
+            return jsonify({"error": "userid required"}), 400
+        update_online(userid, username)
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =========================
 # 🔑 Password reset
 # =========================
 @app.route("/api/checkuserhasemail", methods=["POST"])
 def checkuserhasemail():
-    data     = request.get_json() or {}
-    username = (data.get("username") or "").strip()
-    if not username:
-        return jsonify({"error": "Username required"}), 400
+    try:
+        data     = request.get_json() or {}
+        username = (data.get("username") or "").strip()
+        if not username:
+            return jsonify({"error": "Username required"}), 400
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if u["username"] == username), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if u["username"] == username), None)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    emails       = read_json(EMAILS_PATH)
-    user_id_str  = str(user["userid"])
-    email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
-    if not email_record:
-        return jsonify({"hasEmail": False}), 200
+        emails       = read_json(EMAILS_PATH)
+        user_id_str  = str(user["userid"])
+        email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
+        if not email_record:
+            return jsonify({"hasEmail": False}), 200
 
-    code  = str(random.randint(111111, 999999))
-    codes = [c for c in read_json(PASSWORD_RESET_CODES) if c["username"] != username]
-    codes.append({"username": username, "code": code,
-                  "createdAt": datetime.now(timezone.utc).isoformat()})
-    write_json(PASSWORD_RESET_CODES, codes)
-    send_email(email_record["email"], "Password Reset Code",
-               f"Your verification code is: {code}")
-    return jsonify({"hasEmail": True}), 200
+        code  = str(random.randint(111111, 999999))
+        codes = [c for c in read_json(PASSWORD_RESET_CODES) if c["username"] != username]
+        codes.append({"username": username, "code": code,
+                      "createdAt": datetime.now(timezone.utc).isoformat()})
+        write_json(PASSWORD_RESET_CODES, codes)
+        send_email(email_record["email"], "Password Reset Code",
+                   f"Your verification code is: {code}")
+        return jsonify({"hasEmail": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/sendtogmail", methods=["POST"])
 def sendtogmail():
-    data     = request.get_json() or {}
-    username = data.get("username")
-    code     = data.get("twofacode")
-    codes    = read_json(PASSWORD_RESET_CODES)
-    record   = next((c for c in codes if c["username"] == username
-                     and c["code"] == str(code)), None)
-    return jsonify({"valid": bool(record)}), 200
+    try:
+        data     = request.get_json() or {}
+        username = data.get("username")
+        code     = data.get("twofacode")
+        codes    = read_json(PASSWORD_RESET_CODES)
+        record   = next((c for c in codes if c["username"] == username
+                         and c["code"] == str(code)), None)
+        return jsonify({"valid": bool(record)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/changepassword", methods=["POST"])
 def forgot_change_password():
-    data             = request.get_json() or {}
-    username         = (data.get("username") or "").strip()
-    new_password     = data.get("newPassword") or ""
-    confirm_password = data.get("ConfirmNewPassword") or ""
+    try:
+        data             = request.get_json() or {}
+        username         = (data.get("username") or "").strip()
+        new_password     = data.get("newPassword") or ""
+        confirm_password = data.get("ConfirmNewPassword") or ""
 
-    if not username:
-        return jsonify({"error": "Username required"}), 400
-    # FIX #6 — validate new password before touching the database
-    if len(new_password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
-    if new_password != confirm_password:
-        return jsonify({"error": "Passwords do not match"}), 400
+        if not username:
+            return jsonify({"error": "Username required"}), 400
+        if len(new_password) < 6:
+            return jsonify({"error": "Password must be at least 6 characters"}), 400
+        if new_password != confirm_password:
+            return jsonify({"error": "Passwords do not match"}), 400
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if u["username"] == username), None)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if u["username"] == username), None)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
-    user["password"] = generate_password_hash(new_password)
-    write_json(DB_PATH, users)
+        user["password"] = generate_password_hash(new_password)
+        write_json(DB_PATH, users)
 
-    token  = str(uuid.uuid4())
-    tokens = read_json(PASSWORD_RESET_TOKENS)
-    tokens.append({"userid": user["userid"], "token": token,
-                   "password": new_password,
-                   "createdAt": datetime.now(timezone.utc).isoformat()})
-    write_json(PASSWORD_RESET_TOKENS, tokens)
+        token  = str(uuid.uuid4())
+        tokens = read_json(PASSWORD_RESET_TOKENS)
+        tokens.append({"userid": user["userid"], "token": token,
+                       "password": new_password,
+                       "createdAt": datetime.now(timezone.utc).isoformat()})
+        write_json(PASSWORD_RESET_TOKENS, tokens)
 
-    emails       = read_json(EMAILS_PATH)
-    user_id_str  = str(user["userid"])
-    email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
-    if email_record:
-        url = f"https://almaharat2.com/users/user/{user['userid']}/{token}"
-        msg = MIMEMultipart("alternative")
-        msg["From"]    = SENDER_EMAIL
-        msg["To"]      = email_record["email"]
-        msg["Subject"] = "Your New Password"
-        msg.attach(MIMEText(
-            f'<h2>Password Changed</h2><a href="{url}">See New Password</a>',
-            "html", "utf-8"
-        ))
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.sendmail(SENDER_EMAIL, email_record["email"], msg.as_string())
-        server.quit()
+        emails       = read_json(EMAILS_PATH)
+        user_id_str  = str(user["userid"])
+        email_record = next((e for e in emails if str(e.get("userid")) == user_id_str), None)
+        if email_record:
+            url = f"https://almaharat2.com/users/user/{user['userid']}/{token}"
+            msg = MIMEMultipart("alternative")
+            msg["From"]    = SENDER_EMAIL
+            msg["To"]      = email_record["email"]
+            msg["Subject"] = "Your New Password"
+            msg.attach(MIMEText(
+                f'<h2>Password Changed</h2><a href="{url}">See New Password</a>',
+                "html", "utf-8"
+            ))
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            server.sendmail(SENDER_EMAIL, email_record["email"], msg.as_string())
+            server.quit()
 
-    return jsonify({"success": True}), 200
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/users/user/<string:userid>/<string:token>", methods=["GET"])
 def show_password_token(userid, token):
-    tokens = read_json(PASSWORD_RESET_TOKENS)
-    record = next((t for t in tokens if t["userid"] == userid and t["token"] == token), None)
-    if not record:
-        return jsonify({"success": False, "error": "Invalid token"}), 404
-    age = (datetime.now(timezone.utc) - datetime.fromisoformat(record["createdAt"])).total_seconds()
-    if age > 600:
-        write_json(PASSWORD_RESET_TOKENS,
-                   [t for t in tokens if not (t["userid"] == userid and t["token"] == token)])
-        return jsonify({"success": False, "error": "Token expired"}), 400
-    return jsonify({"success": True, "password": record["password"]})
+    try:
+        tokens = read_json(PASSWORD_RESET_TOKENS)
+        record = next((t for t in tokens if t["userid"] == userid and t["token"] == token), None)
+        if not record:
+            return jsonify({"success": False, "error": "Invalid token"}), 404
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(record["createdAt"])).total_seconds()
+        if age > 600:
+            write_json(PASSWORD_RESET_TOKENS,
+                       [t for t in tokens if not (t["userid"] == userid and t["token"] == token)])
+            return jsonify({"success": False, "error": "Token expired"}), 400
+        return jsonify({"success": True, "password": record["password"]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =========================
 # ✅ Verification System
 # =========================
-FOLLOWERS_PATH = DB_PATH
-LESSON_PROGRESS_PATH = DB_PATH
-
 MIN_FOLLOWERS = 10
 MIN_LESSONS   = 5
 MIN_POINTS    = 50
@@ -1572,17 +1582,13 @@ def _check_requirements(userid: str):
     if not user:
         return None, "المستخدم غير موجود."
 
-    # 1. Has a linked e-mail
     emails    = read_json(EMAILS_PATH)
     has_email = any(str(e.get('userid')) == str(userid) for e in emails)
 
-    # 2. Enough followers — followers is stored as a dict {follower_id: timestamp}
     followers_raw     = user.get('followers', {})
     followers_count   = len(followers_raw) if isinstance(followers_raw, dict) else (followers_raw or 0)
     has_10_followers  = followers_count >= MIN_FOLLOWERS
 
-    # 3. Active learner (completed lessons)
-    # 3. Active learner (completed lessons)
     progress = user.get("lesson_progress", [])
 
     if isinstance(progress, int):
@@ -1595,20 +1601,16 @@ def _check_requirements(userid: str):
 
     is_active_learner = completed_lessons >= MIN_LESSONS
 
-    # 4. Enough points
     current_points    = user.get('points', 0)
     has_enough_points = current_points >= MIN_POINTS
 
-    # 5. Positive interaction (no confirmed violations)
     violations           = read_json(VIOLATIONS_PATH)
     confirmed_violations = sum(1 for v in violations
                                if str(v.get('userid')) == str(userid) and v.get('status') == 'confirmed')
     positive_interaction = confirmed_violations == 0
 
-    # 6. Not banned
     follows_policies = not user.get('is_banned', False)
 
-    # 7. No active violations
     active_count         = sum(1 for v in violations
                                if str(v.get('userid')) == str(userid) and v.get('active', False))
     no_policy_violations = active_count == 0
@@ -1638,102 +1640,111 @@ def _check_requirements(userid: str):
 
 @app.route('/api/checkrequirements', methods=['GET'])
 def check_requirements():
-    userid = request.args.get('userid', '').strip()
+    try:
+        userid = request.args.get('userid', '').strip()
 
-    if not userid:
-        return jsonify({"error": "userid مطلوب"}), 400
+        if not userid:
+            return jsonify({"error": "userid مطلوب"}), 400
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if str(u.get('userid')) == str(userid)), None)
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if str(u.get('userid')) == str(userid)), None)
 
-    if not user:
-        return jsonify({"error": "المستخدم غير موجود"}), 404
+        if not user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
 
-    if user.get("verified", False):
-        return jsonify({
-            "already_verified": True,
-            "message": "انت لديك تحقق من قبل! ✅"
-        }), 200
+        if user.get("verified", False):
+            return jsonify({
+                "already_verified": True,
+                "message": "انت لديك تحقق من قبل! ✅"
+            }), 200
 
-    result, err = _check_requirements(userid)
+        result, err = _check_requirements(userid)
 
-    if err:
-        return jsonify({"error": err}), 404
+        if err:
+            return jsonify({"error": err}), 404
 
-    return jsonify(result), 200
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/submit/verificationrequest/<string:user_id>', methods=['POST'])
 def submit_verification(user_id):
-    data        = request.get_json() or {}
-    body_userid = str(data.get('userid') or '').strip()
+    try:
+        data        = request.get_json() or {}
+        body_userid = str(data.get('userid') or '').strip()
 
-    if body_userid != str(user_id):
-        return jsonify({"error": "غير مصرح لكِ بتقديم هذا الطلب."}), 403
+        if body_userid != str(user_id):
+            return jsonify({"error": "غير مصرح لكِ بتقديم هذا الطلب."}), 403
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if str(u.get('userid')) == str(user_id)), None)
-    if not user:
-        return jsonify({"error": "المستخدم غير موجود."}), 404
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if str(u.get('userid')) == str(user_id)), None)
+        if not user:
+            return jsonify({"error": "المستخدم غير موجود."}), 404
 
-    if user.get('verified'):
-        return jsonify({"error": "حسابكِ محقق بالفعل."}), 400
+        if user.get('verified'):
+            return jsonify({"error": "حسابكِ محقق بالفعل."}), 400
 
-    ver_requests = read_json(VERIFICATION_REQUESTS_PATH)
-    if any(str(r.get('userid')) == str(user_id) and r.get('status') == 'pending' for r in ver_requests):
-        return jsonify({"error": "يوجد طلب تحقق قيد المراجعة بالفعل."}), 400
+        ver_requests = read_json(VERIFICATION_REQUESTS_PATH)
+        if any(str(r.get('userid')) == str(user_id) and r.get('status') == 'pending' for r in ver_requests):
+            return jsonify({"error": "يوجد طلب تحقق قيد المراجعة بالفعل."}), 400
 
-    result, err = _check_requirements(user_id)
-    if err:
-        return jsonify({"error": err}), 404
-    if not result['requirements_met']:
+        result, err = _check_requirements(user_id)
+        if err:
+            return jsonify({"error": err}), 404
+        if not result['requirements_met']:
+            return jsonify({
+                "error":  "لا تستوفين جميع المتطلبات اللازمة للتحقق.",
+                "checks": result['checks'],
+            }), 400
+
+        emails = read_json(EMAILS_PATH)
+        email_record = next(
+            (e for e in emails if str(e.get('userid')) == str(user_id)),
+            None
+        )
+        user_email = email_record.get('email', '') if email_record else ''
+
+        new_req = {
+            "id":           str(uuid.uuid4()),
+            "userid":       str(user_id),
+            "username":     user['username'],
+            "email":        user_email,
+            "status":       "pending",
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
+        }
+        ver_requests.append(new_req)
+        write_json(VERIFICATION_REQUESTS_PATH, ver_requests)
+
         return jsonify({
-            "error":  "لا تستوفين جميع المتطلبات اللازمة للتحقق.",
-            "checks": result['checks'],
-        }), 400
-
-    emails = read_json(EMAILS_PATH)
-    email_record = next(
-        (e for e in emails if str(e.get('userid')) == str(user_id)),
-        None
-    )
-    user_email = email_record.get('email', '') if email_record else ''
-
-    new_req = {
-        "id":           str(uuid.uuid4()),
-        "userid":       str(user_id),
-        "username":     user['username'],
-        "email":        user_email,
-        "status":       "pending",
-        "submitted_at": datetime.now(timezone.utc).isoformat(),
-    }
-    ver_requests.append(new_req)
-    write_json(VERIFICATION_REQUESTS_PATH, ver_requests)
-
-    return jsonify({
-        "message":    "تم إرسال طلب التحقق بنجاح! سيتم مراجعته خلال بضعة أيام.",
-        "request_id": new_req['id'],
-        "userid":     str(user_id),
-    }), 201
+            "message":    "تم إرسال طلب التحقق بنجاح! سيتم مراجعته خلال بضعة أيام.",
+            "request_id": new_req['id'],
+            "userid":     str(user_id),
+        }), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/admin/verificationrequests', methods=['GET'])
 @require_admin_or_owner
 def get_verification_requests():
-    data = read_json(VERIFICATION_REQUESTS_PATH)
+    try:
+        data = read_json(VERIFICATION_REQUESTS_PATH)
 
-    pending = [r for r in data if r.get('status') == 'pending']
+        pending = [r for r in data if r.get('status') == 'pending']
 
-    emails = read_json(EMAILS_PATH)
+        emails = read_json(EMAILS_PATH)
 
-    for r in pending:
-        email_record = next(
-            (e for e in emails if str(e.get('userid')) == str(r.get('userid'))),
-            None
-        )
+        for r in pending:
+            email_record = next(
+                (e for e in emails if str(e.get('userid')) == str(r.get('userid'))),
+                None
+            )
 
-        r['email'] = email_record.get('email', '') if email_record else ''
+            r['email'] = email_record.get('email', '') if email_record else ''
 
-    return jsonify(pending), 200
+        return jsonify(pending), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/admin/verificationrequests/<string:request_id>/approve', methods=['POST'])
@@ -1883,7 +1894,7 @@ def sendemail():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
 import base64
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -1892,9 +1903,6 @@ load_dotenv()
 
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
-
-# Compatible chat models only — embedding / image-gen / video-gen models
-# don't support generate_content() and will always raise an error here.
 from google.api_core.exceptions import ResourceExhausted
 
 CHAT_COMPATIBLE_MODELS = {
@@ -1940,9 +1948,6 @@ def chat():
         ):
             chat_record = accounts[username]["chats"][chat_id]
 
-        # ==========================
-        # بناء سجل المحادثة السابق وتمريره للنموذج كسياق
-        # ==========================
         history = []
         if chat_record:
             for msg in chat_record["messages"]:
@@ -1968,9 +1973,6 @@ def chat():
         except Exception:
             text = "⚠️ لم يتمكن النموذج من إنشاء رد لهذه الرسالة."
 
-        # ==========================
-        # حفظ الرسائل داخل الشات
-        # ==========================
         try:
             if chat_record is not None:
 
@@ -2028,15 +2030,10 @@ def chat():
             "limited": True if is_quota_error else None,
             "chat_id": chat_id
         }), 429 if is_quota_error else 500
-    
-ACCOUNTS_FILE = None
+
 
 def load_accounts():
-    """
-    Load accounts from the JSON file (which is stored as a list of user objects)
-    and return a dict keyed by username for easy lookup/updates by other
-    endpoints that expect a mapping.
-    """
+    """Load accounts and return a dict keyed by username."""
     users = read_json(DB_PATH)
     accounts = {}
     for u in users:
@@ -2046,10 +2043,7 @@ def load_accounts():
     return accounts
 
 def save_accounts(accounts):
-    """
-    Accept a dict keyed by username and write it back to the JSON file as a
-    list (preserving the original on-disk format used elsewhere in the app).
-    """
+    """Write a username-keyed dict back to Supabase as a list."""
     users_list = list(accounts.values())
     write_json(DB_PATH, users_list)
 
@@ -2076,85 +2070,92 @@ def create_chat():
         return jsonify({"success": True, "chat_id": chat_id})
 
     except Exception as e:
-        # 🔥 هذا السطر سيطبع لك الخطأ الحقيقي والسطر المسبب له في كونسول البايثون
         print("CRITICAL BACKEND ERROR IN CREATE_CHAT:", str(e))
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chats", methods=["POST"])
 def get_chats():
+    try:
+        username = request.form.get("username")
 
-    username = request.form.get("username")
+        accounts = load_accounts()
 
-    accounts = load_accounts()
+        if username not in accounts:
+            return jsonify({"error": "account not found"}), 404
 
-    if username not in accounts:
-        return jsonify({"error": "account not found"}), 404
+        chats = []
 
-    chats = []
+        for chat_id, chat in accounts[username]["chats"].items():
+            chats.append({
+                "id": chat_id,
+                "title": chat.get("title") or "شات جديد"
+            })
 
-    for chat_id, chat in accounts[username]["chats"].items():
-        chats.append({
-            "id": chat_id,
-            "title": chat.get("title") or "شات جديد"
-        })
-
-    return jsonify(chats)
+        return jsonify(chats)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chats/<chat_id>", methods=["GET"])
 def get_chat(chat_id):
+    try:
+        username = request.args.get("username")
 
-    username = request.args.get("username")
+        accounts = load_accounts()
 
-    accounts = load_accounts()
+        if username not in accounts:
+            return jsonify({"error": "account not found"}), 404
 
-    if username not in accounts:
-        return jsonify({"error": "account not found"}), 404
+        chat = accounts[username]["chats"].get(chat_id)
 
-    chat = accounts[username]["chats"].get(chat_id)
+        if not chat:
+            return jsonify({"error": "chat not found"}), 404
 
-    if not chat:
-        return jsonify({"error": "chat not found"}), 404
-
-    return jsonify(chat)
+        return jsonify(chat)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chats/<chat_id>/delete", methods=["POST"])
 def delete_chat(chat_id):
+    try:
+        username = request.form.get("username")
 
-    username = request.form.get("username")
+        accounts = load_accounts()
 
-    accounts = load_accounts()
+        if username not in accounts:
+            return jsonify({"error": "account not found"}), 404
 
-    if username not in accounts:
-        return jsonify({"error": "account not found"}), 404
+        if chat_id in accounts[username]["chats"]:
+            del accounts[username]["chats"][chat_id]
 
-    if chat_id in accounts[username]["chats"]:
-        del accounts[username]["chats"][chat_id]
+        save_accounts(accounts)
 
-    save_accounts(accounts)
-
-    return jsonify({"success": True})
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/chats/<chat_id>/rename", methods=["POST"])
 def rename_chat(chat_id):
+    try:
+        username = request.form.get("username")
+        title = request.form.get("title", "").strip()
 
-    username = request.form.get("username")
-    title = request.form.get("title", "").strip()
+        accounts = load_accounts()
 
-    accounts = load_accounts()
+        if username not in accounts:
+            return jsonify({"error": "account not found"}), 404
 
-    if username not in accounts:
-        return jsonify({"error": "account not found"}), 404
+        chat = accounts[username]["chats"].get(chat_id)
 
-    chat = accounts[username]["chats"].get(chat_id)
+        if not chat:
+            return jsonify({"error": "chat not found"}), 404
 
-    if not chat:
-        return jsonify({"error": "chat not found"}), 404
+        chat["title"] = title
 
-    chat["title"] = title
+        save_accounts(accounts)
 
-    save_accounts(accounts)
-
-    return jsonify({"success": True})
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 def normalize_id_list(values):
     if isinstance(values, list):
@@ -2184,29 +2185,6 @@ def remove_id_from_list(values, item_id):
     values = normalize_id_list(values)
     return [value for value in values if value != item_id]
 
-
-def safe_user(user):
-    u = {k: v for k, v in user.items() if k not in {'password', 'private_chats'}}
-
-    followers = u.get('followers')
-    if isinstance(followers, dict):
-        u['followers'] = len(followers)
-    elif not isinstance(followers, int):
-        u['followers'] = 0
-
-    following = u.get('following')
-    if isinstance(following, dict):
-        u['following'] = len(following)
-    elif not isinstance(following, int):
-        u['following'] = 0
-
-    friends = u.get('Friends')
-    if isinstance(friends, list):
-        u['friends_count'] = len(normalize_id_list(friends))
-    else:
-        u['friends_count'] = 0
-
-    return u
 
 @app.route("/api/friends/<string:userid>", methods=["GET"])
 def get_friends(userid):
@@ -2309,19 +2287,22 @@ def send_friend_message():
 
 @app.route("/api/users/public/<string:userid>", methods=["GET"])
 def get_public_user(userid):
-    users = read_json(DB_PATH)
-    user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
-    if not user:
-        return jsonify({"error": "المستخدم غير موجود"}), 404
+    try:
+        users = read_json(DB_PATH)
+        user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
+        if not user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
 
-    result = safe_user(user)
+        result = safe_user(user)
 
-    viewer_id = str(request.args.get("viewer_id") or "").strip()
-    if viewer_id:
-        followers = user.get("followers")
-        result["is_following"] = isinstance(followers, dict) and viewer_id in followers
+        viewer_id = str(request.args.get("viewer_id") or "").strip()
+        if viewer_id:
+            followers = user.get("followers")
+            result["is_following"] = isinstance(followers, dict) and viewer_id in followers
 
-    return jsonify(result), 200
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/users/follow/<string:userid>", methods=["POST"])
 def toggle_follow_user(userid):
@@ -2405,17 +2386,20 @@ def toggle_follow_user(userid):
 
 @app.route("/api/users/isdeveloper", methods=["GET"])
 def is_developer():
-    userid = str(request.args.get("userid") or "").strip()
-    if not userid:
-        return jsonify({"error": "userid مطلوب"}), 400
+    try:
+        userid = str(request.args.get("userid") or "").strip()
+        if not userid:
+            return jsonify({"error": "userid مطلوب"}), 400
 
-    users = read_json(DB_PATH)
-    user  = next((u for u in users if str(u.get("userid")) == userid), None)
-    if not user:
-        return jsonify({"error": "المستخدم غير موجود"}), 404
+        users = read_json(DB_PATH)
+        user  = next((u for u in users if str(u.get("userid")) == userid), None)
+        if not user:
+            return jsonify({"error": "المستخدم غير موجود"}), 404
 
-    is_dev = user.get("is_developer", False)
-    return jsonify({"is_developer": is_dev}), 200
+        is_dev = user.get("is_developer", False)
+        return jsonify({"is_developer": is_dev}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/owner/posts/<string:post_id>/block', methods=['POST'])
 @require_owner
@@ -2466,105 +2450,108 @@ def get_notifications(userid):
 
 @app.route("/api/notifications/unread_count", methods=["GET"])
 def unread_notifications_count():
-    userid = session.get("userid")
+    try:
+        userid = session.get("userid")
 
-    users = read_json(DB_PATH)
-    user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
+        users = read_json(DB_PATH)
+        user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
 
-    if not user:
-        return jsonify({"count": 0}), 200
+        if not user:
+            return jsonify({"count": 0}), 200
 
-    notifications = user.get("notifications", [])
+        notifications = user.get("notifications", [])
 
-    count = sum(1 for n in notifications if not n.get("read", False))
+        count = sum(1 for n in notifications if not n.get("read", False))
 
-    return jsonify({"count": count}), 200
+        return jsonify({"count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# =========================
-# Read All Notifications
-# =========================
 @app.route("/api/notifications/read_all", methods=["POST"])
 def read_all_notifications():
-    userid = request.cookies.get("userid")
+    try:
+        userid = request.cookies.get("userid")
 
-    users = read_json(DB_PATH)
+        users = read_json(DB_PATH)
 
-    for user in users:
-        if str(user.get("userid")) == str(userid):
-            for notification in user.get("notifications", []):
-                notification["read"] = True
-            write_json(DB_PATH, users)
-            return jsonify({"success": True}), 200
+        for user in users:
+            if str(user.get("userid")) == str(userid):
+                for notification in user.get("notifications", []):
+                    notification["read"] = True
+                write_json(DB_PATH, users)
+                return jsonify({"success": True}), 200
 
-    return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# =========================
-# Delete Notification
-# =========================
 @app.route("/api/notifications/delete/<notification_id>", methods=["DELETE"])
 def delete_notification(notification_id):
-    userid = request.cookies.get("userid")
+    try:
+        userid = request.cookies.get("userid")
 
-    users = read_json(DB_PATH)
+        users = read_json(DB_PATH)
 
-    for user in users:
-        if str(user.get("userid")) == str(userid):
-            notifications = user.get("notifications", [])
+        for user in users:
+            if str(user.get("userid")) == str(userid):
+                notifications = user.get("notifications", [])
 
-            new_notifications = [
-                n for n in notifications
-                if str(n.get("id")) != str(notification_id)
-            ]
+                new_notifications = [
+                    n for n in notifications
+                    if str(n.get("id")) != str(notification_id)
+                ]
 
-            if len(new_notifications) == len(notifications):
-                return jsonify({"error": "Notification not found"}), 404
+                if len(new_notifications) == len(notifications):
+                    return jsonify({"error": "Notification not found"}), 404
 
-            user["notifications"] = new_notifications
-            write_json(DB_PATH, users)
-            return jsonify({"success": True}), 200
+                user["notifications"] = new_notifications
+                write_json(DB_PATH, users)
+                return jsonify({"success": True}), 200
 
-    return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# =========================
-# Read Notification
-# =========================
 @app.route("/api/notifications/read/<notification_id>", methods=["POST"])
 def read_notification(notification_id):
-    userid = request.cookies.get("userid")
+    try:
+        userid = request.cookies.get("userid")
 
-    users = read_json(DB_PATH)
+        users = read_json(DB_PATH)
 
-    for user in users:
-        if str(user.get("userid")) == str(userid):
-            for notification in user.get("notifications", []):
-                if str(notification.get("id")) == str(notification_id):
-                    notification["read"] = True
-                    write_json(DB_PATH, users)
-                    return jsonify({"success": True}), 200
+        for user in users:
+            if str(user.get("userid")) == str(userid):
+                for notification in user.get("notifications", []):
+                    if str(notification.get("id")) == str(notification_id):
+                        notification["read"] = True
+                        write_json(DB_PATH, users)
+                        return jsonify({"success": True}), 200
 
-            return jsonify({"error": "Notification not found"}), 404
+                return jsonify({"error": "Notification not found"}), 404
 
-    return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# =========================
-# Delete All Notifications
-# =========================
 @app.route("/api/notifications/delete_all", methods=["DELETE"])
 def delete_all_notifications():
-    userid = request.cookies.get("userid")
+    try:
+        userid = request.cookies.get("userid")
 
-    users = read_json(DB_PATH)
+        users = read_json(DB_PATH)
 
-    for user in users:
-        if str(user.get("userid")) == str(userid):
-            user["notifications"] = []
-            write_json(DB_PATH, users)
-            return jsonify({"success": True}), 200
+        for user in users:
+            if str(user.get("userid")) == str(userid):
+                user["notifications"] = []
+                write_json(DB_PATH, users)
+                return jsonify({"success": True}), 200
 
-    return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == '__main__':
