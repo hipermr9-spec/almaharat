@@ -165,26 +165,20 @@ def _table_for_path(path):
 
 
 TABLE_COLUMNS = {
-    "Accounts": {"userid", "username", "password", "points", "role", "verified", "chats", "followers", "lesson_progress", "following", "Friends", "nofication", "notification", "profile_picture", "is_developer", "mailEnabled", "twoFA", "is_banned", "notifications", "private_chats"},
+    "Accounts": {"userid", "username", "password", "points", "role", "verified", "chats", "followers", "lesson_progress", "following", "Friends", "nofication", "profile_picture", "is_developer", "mailEnabled", "twoFA", "is_banned", "notifications", "private_chats"},  # removed stray "notification"
     "Emails": {"id", "userid", "email", "verified", "createdAt"},
     "Posts": {"id", "userid", "username", "title", "description", "hashtags", "visibility", "media", "likes", "dislikes", "comments", "createdAt", "blocked", "linkToken"},
     "Verify_Requests": {"id", "userid", "username", "email", "status", "submitted_at", "reviewed_at"},
     "Online": {"userid", "username", "lastSeen"},
-    "WorkingPages": {"PageName", "id", "path", "title", "createdAt"},
-    "BlockedPages": {"PageName", "id", "path", "title", "createdAt"},
-    "violations": {"id", "created_at", "user_id", "userid", "reason", "status", "active"},
-    # FIX #10 — this whitelist said "userid" but _app_to_db() renames the
-    #           field to "user_id" for this table before it gets here. The
-    #           filter below then dropped "user_id" (not in the set) and
-    #           kept the now-orphaned "userid" key, so every INSERT sent a
-    #           column ("userid") that doesn't exist in the real Supabase
-    #           table, causing: PGRST204 Could not find the 'userid' column.
+    "WorkingPages": {"PageName"},   # was {"PageName","id","path","title","createdAt"}
+    "BlockedPages": {"PageName"},   # was {"PageName","id","path","title","createdAt"}
+    "violations": {"id", "created_at", "user_id", "reason", "status", "active"},  # removed "userid"
     "twofa_codes": {"id", "created_at", "user_id", "code"},
-    "password_reset_tokens": {"id", "created_at", "token_id", "user_id", "userid", "token", "password"},
-    "password_reset_codes": {"id", "created_at", "token_id", "code", "user_id", "userid", "username"},
+    "password_reset_tokens": {"id", "created_at", "token_id", "user_id", "token", "password"},  # removed "userid"
+    "password_reset_codes": {"id", "created_at", "token_id", "code", "user_id", "username"},     # removed "userid"
     "linkonlyposts_link": {"id", "created_at", "post_id", "token"},
-    "email_verification_codes": {"id", "created_at", "email", "code", "user_id", "userid"},
-    "Enrichments": {"id", "created_at", "title", "description", "type", "link", "file", "content", "createdAt", "updatedAt"},
+    "email_verification_codes": {"id", "created_at", "email", "code", "user_id"},  # removed "userid"
+    "Enrichments": {"id", "created_at", "title", "description", "type", "link", "file", "content", "updatedAt"},
 }
 
 
