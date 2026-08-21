@@ -45,7 +45,26 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173"
 ]
 
-CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)
+# CORS(app, origins=ALLOWED_ORIGINS, supports_credentials=True)   ← delete this line
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    if origin and origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = ", ".join([
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "ngrok-skip-browser-warning",
+            "X-Admin-Token",
+            "X-Owner-Token"
+        ])
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Vary"] = "Origin"
+    return response
 
 @app.after_request
 def add_cors_headers(response):
