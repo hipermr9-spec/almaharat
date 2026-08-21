@@ -727,11 +727,13 @@ def send_email(to_email, title, body):
     msg["Subject"] = title
     msg.attach(MIMEText(body, "plain"))
 
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(SENDER_EMAIL, SENDER_PASSWORD)
-    server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
-    server.quit()
+    server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+    try:
+        server.starttls()
+        server.login(SENDER_EMAIL, SENDER_PASSWORD)
+        server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+    finally:
+        server.quit()
 
 def send_to_all_emails():
     emails = read_json(EMAILS_PATH)
