@@ -210,13 +210,26 @@ def _request(method, table, **kwargs):
 def _upsert_rows(table, rows, pk):
     headers = {
         **SUPABASE_HEADERS,
-        "Prefer": "resolution=merge-duplicates,return=representation",
+        "Prefer": "return=representation",
     }
     saved = []
     for row in rows:
         if not row.get(pk):
-            raise RuntimeError(f"Cannot upsert {table}: missing primary key '{pk}'.")
-        result = _request("POST", table, params={"on_conflict": pk}, json=row, headers=headers)
+            raise RuntimeError(f"Cannot save {table}: missing primary key '{pk}'.")
+
+        # Do not use PostgREST's `on_conflict` here: legacy tables such as
+        # Accounts may not have a UNIQUE constraint on their logical key.
+        # PATCH updates an existing row without requiring that constraint;
+        # when no row matches, insert the new row instead.
+        result = _request(
+            "PATCH",
+            table,
+            params={pk: f"eq.{row[pk]}"},
+            json=row,
+            headers=headers,
+        )
+        if not result:
+            result = _request("POST", table, json=row, headers=headers)
         if isinstance(result, list):
             saved.extend(result)
         else:
