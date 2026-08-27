@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-// const API = "https://api.almaharat2.com";
-const API = "http://localhost:5000";
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
 
 export default function BlockedPosts() {
   const [posts, setPosts] = useState([]);

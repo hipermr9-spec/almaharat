@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Cookies from 'js-cookie'
 import './App.css'
+import { normalizePost } from './postUtils'
 
 const API = import.meta.env.VITE_API_URL ?? 'https://api.almaharat2.com'
 
@@ -21,7 +22,7 @@ export default function PostLink() {
           setError(data.error || 'حدث خطأ أثناء جلب المنشور')
           return
         }
-        setPost(data)
+        setPost(normalizePost(data))
       } catch (err) {
         setError('تعذّر الاتصال بالخادم')
       } finally {

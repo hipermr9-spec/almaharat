@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import './App.css';
 import BlockedPosts from './Website/BlockedPosts';
+import { normalizeHashtags, normalizePost } from './postUtils';
 
-const API = "https://api.almaharat2.com";
+const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
 function timeAgo(iso) {
@@ -139,6 +140,7 @@ function ActionBtn({ icon, count, active, activeColor, onClick }) {
 
 /* ─── PostCard ────────────────────────────────────────────────────────── */
 function PostCard({ post, user, onRefresh }) {
+  const hashtags = normalizeHashtags(post.hashtags);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment]     = useState('');
   const [submitting, setSubmitting]     = useState(false);
@@ -283,9 +285,9 @@ function PostCard({ post, user, onRefresh }) {
         )}
       </div>
 
-      {post.hashtags?.length > 0 && (
+      {hashtags.length > 0 && (
         <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8, direction:'rtl' }}>
-          {post.hashtags.map(tag => (
+          {hashtags.map(tag => (
             <span key={tag} style={{
               background:'rgba(99,102,241,.15)', color:'#818cf8',
               borderRadius:20, padding:'2px 10px', fontSize:12,
@@ -371,7 +373,7 @@ export default function PostPage() {
     try {
       const res  = await fetch(`${API}/api/posts`);
       const data = await res.json();
-      setPosts(Array.isArray(data) ? data : []);
+      setPosts(Array.isArray(data) ? data.map(normalizePost) : []);
     } catch { setPosts([]); }
     setLoading(false);
   }
@@ -381,7 +383,7 @@ export default function PostPage() {
   const filtered = posts.filter(p =>
     p.title?.includes(search) ||
     p.description?.includes(search) ||
-    p.hashtags?.some(t => t.includes(search)) ||
+    normalizeHashtags(p.hashtags).some(t => t.includes(search)) ||
     p.username?.includes(search)
   );
 

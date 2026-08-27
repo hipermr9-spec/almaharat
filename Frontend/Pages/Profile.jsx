@@ -24,6 +24,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Cookies from "js-cookie";
 import "./Profile.css";
+import { normalizeHashtags, normalizePost } from "./postUtils";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API = "https://api.almaharat2.com";
@@ -124,6 +125,7 @@ function PostCard({ post, onOpen }) {
 
 // ─── PostModal ────────────────────────────────────────────────────────────────
 function PostModal({ post, onClose }) {
+  const hashtags = normalizeHashtags(post.hashtags);
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", handler);
@@ -154,9 +156,9 @@ function PostModal({ post, onClose }) {
             <p className="modal-desc">{post.description}</p>
           )}
 
-          {post.hashtags?.length > 0 && (
+          {hashtags.length > 0 && (
             <div className="modal-tags">
-              {post.hashtags.map((t) => (
+              {hashtags.map((t) => (
                 <span key={t} className="hashtag">#{t}</span>
               ))}
             </div>
@@ -251,7 +253,10 @@ export default function Profile() {
     // ── Posts — separate try/catch so a failure here doesn't blank the profile ──
     try {
       const pr = await fetch(`${API}/api/posts/user/${userId}`, { signal });
-      if (pr.ok) setPosts(await pr.json());
+      if (pr.ok) {
+        const postData = await pr.json();
+        setPosts(Array.isArray(postData) ? postData.map(normalizePost) : []);
+      }
     } catch (e) {
       if (e.name !== "AbortError") {
         console.error("Failed to load posts:", e);

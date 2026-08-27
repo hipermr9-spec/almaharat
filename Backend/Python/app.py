@@ -1101,6 +1101,22 @@ def allowed_post_file(filename):
 def get_post_media_type(filename):
     return 'video' if filename.rsplit('.', 1)[1].lower() in {'mp4', 'webm', 'mov'} else 'image'
 
+def normalize_post_hashtags(post):
+    """Keep API responses compatible with legacy posts stored as text/JSON strings."""
+    tags = post.get('hashtags')
+    if isinstance(tags, list):
+        post['hashtags'] = [tag.strip() for tag in tags if isinstance(tag, str) and tag.strip()]
+    elif isinstance(tags, str):
+        try:
+            parsed = json.loads(tags)
+            post['hashtags'] = parsed if isinstance(parsed, list) else tags.split(',')
+        except json.JSONDecodeError:
+            post['hashtags'] = tags.split(',')
+        post['hashtags'] = [tag.strip() for tag in post['hashtags'] if isinstance(tag, str) and tag.strip()]
+    else:
+        post['hashtags'] = []
+    return post
+
 @app.route('/uploads/posts/<filename>')
 def serve_post_media(filename):
     return send_from_directory(POSTS_MEDIA, filename)
@@ -1111,7 +1127,7 @@ def get_posts():
         posts  = read_json(POSTS_PATH)
         public = [p for p in posts if p.get('visibility') == 'public']
         public.sort(key=lambda p: p.get('createdAt', ''), reverse=True)
-        return jsonify(public), 200
+        return jsonify([normalize_post_hashtags(p) for p in public]), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1122,7 +1138,7 @@ def get_post_by_id(post_id):
         post  = next((p for p in posts if p['id'] == post_id), None)
         if post is None:
             return jsonify({"error": "Post not found"}), 404
-        return jsonify(post), 200
+        return jsonify(normalize_post_hashtags(post)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1137,7 +1153,7 @@ def get_post_by_link_token(token):
         post  = next((p for p in posts if p['id'] == mapping.get('post_id')), None)
         if not post or post.get('visibility') != 'link':
             return jsonify({"error": "Post not found"}), 404
-        return jsonify(post), 200
+        return jsonify(normalize_post_hashtags(post)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1147,7 +1163,7 @@ def get_posts_by_user(userid):
         posts      = read_json(POSTS_PATH)
         user_posts = [p for p in posts if p.get('userid') == userid]
         user_posts.sort(key=lambda p: p.get('createdAt', ''), reverse=True)
-        return jsonify(user_posts), 200
+        return jsonify([normalize_post_hashtags(p) for p in user_posts]), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

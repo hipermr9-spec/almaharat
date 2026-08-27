@@ -128,13 +128,16 @@
         var labelEl  = document.getElementById("gpc-label");
 
         function render() {
+          // Resource entries may still arrive after the loader has been removed.
+          if (finished || !loaderEl.isConnected) return;
           if (total > 0) {
             if (!switched) {
               trackEl.innerHTML = '<div class="gpc-det" id="gpc-det"></div>';
               switched = true;
             }
             var pct = Math.min(loaded / total, 1);
-            document.getElementById("gpc-det").style.transform = "scaleX(" + pct + ")";
+            var detailEl = document.getElementById("gpc-det");
+            if (detailEl) detailEl.style.transform = "scaleX(" + pct + ")";
             labelEl.textContent = "Loading… " + loaded + " / " + total + " resources";
           } else {
             labelEl.textContent = "Loading…";
