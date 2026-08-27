@@ -420,45 +420,48 @@ def serve_image(filename):
 # =========================
 @app.route('/api/register', methods=['POST'])
 def register():
-    data         = request.json or {}
-    raw_username = (data.get('username') or '').strip()
-    password     = data.get('password') or ''
+    try:
+        data         = request.json or {}
+        raw_username = (data.get('username') or '').strip()
+        password     = data.get('password') or ''
 
-    if not raw_username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
-    if len(password) < 6:
-        return jsonify({"error": "Password must be at least 6 characters"}), 400
-    if raw_username != raw_username.lower():
-        return jsonify({"error": "Username must be lowercase only"}), 400
-    if not re.match(r'^[a-z0-9_]+$', raw_username):
-        return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
+        if not raw_username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+        if len(password) < 6:
+            return jsonify({"error": "Password must be at least 6 characters"}), 400
+        if raw_username != raw_username.lower():
+            return jsonify({"error": "Username must be lowercase only"}), 400
+        if not re.match(r'^[a-z0-9_]+$', raw_username):
+            return jsonify({"error": "Username may only contain lowercase letters, numbers, and underscores"}), 400
 
-    username = raw_username
-    accounts = read_json(DB_PATH)
-    if any(acc['username'] == username for acc in accounts):
-        return jsonify({"error": "Username already exists"}), 400
+        username = raw_username
+        accounts = read_json(DB_PATH)
+        if any(acc['username'] == username for acc in accounts):
+            return jsonify({"error": "Username already exists"}), 400
 
-    new_user = {
-        "userid":         str(uuid.uuid4()),
-        "username":       username,
-        "password":       generate_password_hash(password),
-        "points":         0,
-        "role":           "user",
-        "verified":       False,
-        "is_banned":      False,
-        "chats":          {},
-        "followers":      {},
-        "lesson_progress": 0,
-        "following":      {},
-        "Friends":        [],
-        "notification":   [],
-        "profile_picture": "",
-        "mailEnabled":    False,
-        "twoFA":          False
-    }
-    accounts.append(new_user)
-    write_json(DB_PATH, accounts)
-    return jsonify({"message": "Account created"}), 201
+        new_user = {
+            "userid":         str(uuid.uuid4()),
+            "username":       username,
+            "password":       generate_password_hash(password),
+            "points":         0,
+            "role":           "user",
+            "verified":       False,
+            "is_banned":      False,
+            "chats":          {},
+            "followers":      {},
+            "lesson_progress": 0,
+            "following":      {},
+            "Friends":        [],
+            "notifications":  [],
+            "profile_picture": "",
+            "mailEnabled":    False,
+            "twoFA":          False
+        }
+        accounts.append(new_user)
+        write_json(DB_PATH, accounts)
+        return jsonify({"message": "Account created"}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():
