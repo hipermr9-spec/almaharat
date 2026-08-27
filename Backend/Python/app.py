@@ -505,8 +505,10 @@ def register():
             "mailEnabled":    False,
             "twoFA":          False
         }
-        accounts.append(new_user)
-        write_json(DB_PATH, accounts)
+        # Registration creates exactly one row.  Do not write the complete
+        # account list here: that would PATCH existing accounts before the
+        # new account is inserted.
+        _request("POST", "Accounts", json=_app_to_db("Accounts", new_user))
         return jsonify({"message": "Account created"}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
