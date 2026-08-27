@@ -212,7 +212,16 @@ def _upsert_rows(table, rows, pk):
         **SUPABASE_HEADERS,
         "Prefer": "resolution=merge-duplicates,return=representation",
     }
-    return _request("POST", table, params={"on_conflict": pk}, json=rows, headers=headers)
+    saved = []
+    for row in rows:
+        if not row.get(pk):
+            raise RuntimeError(f"Cannot upsert {table}: missing primary key '{pk}'.")
+        result = _request("POST", table, params={"on_conflict": pk}, json=row, headers=headers)
+        if isinstance(result, list):
+            saved.extend(result)
+        else:
+            saved.append(result)
+    return saved
 
 
 def _db_to_app(table, row):
