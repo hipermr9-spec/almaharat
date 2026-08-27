@@ -302,10 +302,10 @@ def write_json(path, data):
     rows = [_app_to_db(table, item) for item in (data or [])]
     pk = TABLE_PRIMARY_KEY.get(table, "id")
 
-    # Accounts and Emails are updated in place by their callers. Rebuilding
-    # either table with DELETE + INSERT is unsafe, and Emails is published by
-    # Supabase without a replica identity that permits bulk deletes.
-    if table in {"Accounts", "Emails"}:
+    # These tables are updated in place by their callers. Rebuilding them with
+    # DELETE + INSERT is unsafe, and can fail for Supabase-published tables
+    # without a replica identity that permits bulk deletes.
+    if table in {"Accounts", "Emails", "Posts"}:
         if rows:
             _upsert_rows(table, rows, pk)
         return
@@ -1269,6 +1269,8 @@ def like_post(post_id):
         if not post:
             return jsonify({"error": "Post not found"}), 404
 
+        normalize_post_hashtags(post)
+
         if userid in post['likes']:
             post['likes'].remove(userid)
 
@@ -1319,6 +1321,7 @@ def dislike_post(post_id):
         posts = read_json(POSTS_PATH)
         post  = next((p for p in posts if p['id'] == post_id), None)
         if not post: return jsonify({"error": "Post not found"}), 404
+        normalize_post_hashtags(post)
         if userid in post['dislikes']:
             post['dislikes'].remove(userid)
         else:
@@ -1350,6 +1353,8 @@ def comment_on_post(post_id):
 
         if not post:
             return jsonify({"error": "Post not found"}), 404
+
+        normalize_post_hashtags(post)
 
         comment = {
             "id": str(uuid.uuid4()),
@@ -1402,6 +1407,7 @@ def delete_comment(post_id, comment_id):
         posts  = read_json(POSTS_PATH)
         post   = next((p for p in posts if p['id'] == post_id), None)
         if not post: return jsonify({"error": "Post not found"}), 404
+        normalize_post_hashtags(post)
         comment = next((c for c in post['comments'] if c['id'] == comment_id), None)
         if not comment: return jsonify({"error": "Comment not found"}), 404
         if comment['userid'] != userid: return jsonify({"error": "Unauthorized"}), 403
