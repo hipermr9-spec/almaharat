@@ -244,19 +244,22 @@ def read_json(path):
     return [_db_to_app(table, r) for r in rows]
 
 
+TABLE_PRIMARY_KEY = {
+    "Accounts": "userid",
+    "Online": "userid",
+    "WorkingPages": "PageName",
+    "BlockedPages": "PageName",
+    # everything else defaults to "id"
+}
+
 def write_json(path, data):
-    """Overwrite all rows for the Supabase table this logical key maps to
-    (delete-then-insert, matching the old JSON file's replace-whole-file
-    semantics). No local-file fallback."""
     table = _table_for_path(path)
     if not table:
         raise RuntimeError(f"Unknown data key '{path}' — no Supabase table mapping for it.")
 
     rows = [_app_to_db(table, item) for item in (data or [])]
-    if "id" in TABLE_COLUMNS[table]:
-        _request("DELETE", table, params={"id": "not.is.null"})
-    else:
-        _request("DELETE", table, params={"PageName": "not.is.null"})
+    pk = TABLE_PRIMARY_KEY.get(table, "id")
+    _request("DELETE", table, params={pk: "not.is.null"})
     if rows:
         _request("POST", table, json=rows)
 
