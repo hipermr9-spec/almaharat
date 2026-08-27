@@ -195,7 +195,8 @@ def _request(method, table, **kwargs):
         )
 
     url = f"{SUPABASE_URL}/rest/v1/{table}"
-    response = requests.request(method, url, headers=SUPABASE_HEADERS, timeout=30, **kwargs)
+    headers = kwargs.pop("headers", SUPABASE_HEADERS)
+    response = requests.request(method, url, headers=headers, timeout=30, **kwargs)
     if not response.ok:
         raise RuntimeError(f"Supabase {method} {table} failed ({response.status_code}): {response.text}")
     if not response.content:
@@ -204,6 +205,14 @@ def _request(method, table, **kwargs):
         return response.json()
     except ValueError:
         return []
+
+
+def _upsert_rows(table, rows, pk):
+    headers = {
+        **SUPABASE_HEADERS,
+        "Prefer": "resolution=merge-duplicates,return=representation",
+    }
+    return _request("POST", table, params={"on_conflict": pk}, json=rows, headers=headers)
 
 
 def _db_to_app(table, row):
@@ -270,6 +279,12 @@ def write_json(path, data):
 
     rows = [_app_to_db(table, item) for item in (data or [])]
     pk = TABLE_PRIMARY_KEY.get(table, "id")
+
+    if table == "Accounts":
+        if rows:
+            _upsert_rows(table, rows, pk)
+        return
+
     _request("DELETE", table, params={pk: "not.is.null"})
     if rows:
         _request("POST", table, json=rows)
@@ -986,10 +1001,11 @@ def delete_account():
         data      = request.get_json() or {}
         userid    = data.get("userid")
         users     = read_json(DB_PATH)
-        new_users = [u for u in users if u["userid"] != userid]
-        if len(new_users) == len(users):
+        user = next((u for u in users if str(u.get("userid")) == str(userid)), None)
+        if not user:
             return jsonify({"error": "User not found"}), 404
-        write_json(DB_PATH, new_users)
+
+        _request("DELETE", "Accounts", params={"userid": f"eq.{userid}"})
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
