@@ -487,8 +487,16 @@ def register():
         if any(acc['username'] == username for acc in accounts):
             return jsonify({"error": "Username already exists"}), 400
 
+        existing_userids = []
+        for account in accounts:
+            try:
+                existing_userids.append(int(account.get("userid")))
+            except (TypeError, ValueError):
+                continue
+
         new_user = {
-            "userid":         str(uuid.uuid4()),
+            # Accounts.userid is a PostgreSQL bigint, not a UUID column.
+            "userid":         max(existing_userids, default=0) + 1,
             "username":       username,
             "password":       generate_password_hash(password),
             "points":         0,
