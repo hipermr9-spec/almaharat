@@ -38,12 +38,15 @@ export default function Register() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await res.json()
+        : { error: `Server returned ${res.status} ${res.statusText}` };
       if (res.ok) {
         alert("🎉 مبروك! تم إنشاء حسابك التعليمي بنجاح");
         window.location.href = "/login";
       } else {
-        alert("⚠️ " + data.error);
+        alert("⚠️ " + (data.error || "Registration failed"));
       }
     } catch {
       alert("❌ السيرفر طافي! شغل ملف app.py أولاً");

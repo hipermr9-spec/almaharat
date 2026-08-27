@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, send_from_directory, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.serving import WSGIRequestHandler
+from werkzeug.exceptions import HTTPException
 import smtplib
 import random
 import threading
@@ -68,6 +69,16 @@ def add_cors_headers(response):
         response.headers["Vary"] = "Origin"
     return response
 
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    if isinstance(error, HTTPException):
+        if request.path.startswith("/api/"):
+            return jsonify({"error": error.description}), error.code
+        return error
+
+    app.logger.exception("Unhandled exception")
+    return jsonify({"error": str(error)}), 500
+
 # =========================
 # 📂 Media upload paths
 # =========================
@@ -113,17 +124,12 @@ OWNER_SECRET = "OWNER_TOKEN_2026"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://koncmjbfxaylnengciaj.supabase.co").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
 
-if not SUPABASE_KEY:
-    raise RuntimeError(
-        "SUPABASE_SERVICE_ROLE_KEY is not set. Put your Supabase server key in an environment variable."
-    )
-
 SUPABASE_HEADERS = {
     "apikey": SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
     "Prefer": "return=representation",
-}
+} if SUPABASE_KEY else None
 
 # Logical keys used throughout the route code below. These map 1:1 to
 # Supabase tables via _table_for_path — they are NOT filesystem paths
@@ -183,6 +189,11 @@ TABLE_COLUMNS = {
 
 
 def _request(method, table, **kwargs):
+    if not SUPABASE_HEADERS:
+        raise RuntimeError(
+            "Supabase is not configured. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY in the backend environment."
+        )
+
     url = f"{SUPABASE_URL}/rest/v1/{table}"
     response = requests.request(method, url, headers=SUPABASE_HEADERS, timeout=30, **kwargs)
     if not response.ok:
@@ -1898,14 +1909,28 @@ def sendemail():
         return jsonify({"error": str(e)}), 500
 
 import base64
-import google.generativeai as genai
-from dotenv import load_dotenv
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        return False
 
 load_dotenv()
 
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+if genai and GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
 
-from google.api_core.exceptions import ResourceExhausted
+try:
+    from google.api_core.exceptions import ResourceExhausted
+except ImportError:
+    class ResourceExhausted(Exception):
+        pass
 
 CHAT_COMPATIBLE_MODELS = {
     "gemini-3.5-flash", "gemini-3-flash", "gemini-3.1-pro", "gemini-3.1-flash-lite",
@@ -1913,6 +1938,11 @@ CHAT_COMPATIBLE_MODELS = {
 }
 
 def get_model(name):
+    if genai is None:
+        raise RuntimeError("google-generativeai is not installed. Run pip install -r Backend/Python/requirements.txt.")
+    if not GOOGLE_API_KEY:
+        raise RuntimeError("GOOGLE_API_KEY is not set in the backend environment.")
+
     if name not in CHAT_COMPATIBLE_MODELS:
         name = "gemini-2.5-flash"
     try:
