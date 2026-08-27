@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Cookies from 'js-cookie';
 import './App.css';
 import BlockedPosts from './Website/BlockedPosts';
-import { normalizeHashtags, normalizePost } from './postUtils';
+import { normalizeHashtags, normalizeList, normalizePost } from './postUtils';
 
 const API = import.meta.env.VITE_API_URL ?? "https://api.almaharat2.com";
 
@@ -64,15 +64,16 @@ function Comment({ comment, user, onDelete }) {
 
 /* ─── MediaGrid ───────────────────────────────────────────────────────── */
 function MediaGrid({ media }) {
-  if (!media?.length) return null;
-  const single = media.length === 1;
+  const items = normalizeList(media);
+  if (!items.length) return null;
+  const single = items.length === 1;
   return (
     <div style={{
       display:'grid',
       gridTemplateColumns: single ? '1fr' : 'repeat(2, 1fr)',
       gap:3, borderRadius:16, overflow:'hidden', marginTop:12,
     }}>
-      {media.slice(0,4).map((m, i) => (
+      {items.slice(0,4).map((m, i) => (
         <div key={i} style={{
           position:'relative', paddingTop: single ? '56.25%' : '75%',
           background:'#0f172a', overflow:'hidden'
@@ -95,12 +96,12 @@ function MediaGrid({ media }) {
               }}
               />
           }
-          {i === 3 && media.length > 4 && (
+          {i === 3 && items.length > 4 && (
             <div style={{
               position:'absolute', inset:0, background:'rgba(0,0,0,.6)',
               display:'flex', alignItems:'center', justifyContent:'center',
               fontSize:28, fontWeight:800, color:'#fff'
-            }}>+{media.length - 4}</div>
+            }}>+{items.length - 4}</div>
           )}
         </div>
       ))}

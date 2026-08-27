@@ -302,7 +302,10 @@ def write_json(path, data):
     rows = [_app_to_db(table, item) for item in (data or [])]
     pk = TABLE_PRIMARY_KEY.get(table, "id")
 
-    if table == "Accounts":
+    # Accounts and Emails are updated in place by their callers. Rebuilding
+    # either table with DELETE + INSERT is unsafe, and Emails is published by
+    # Supabase without a replica identity that permits bulk deletes.
+    if table in {"Accounts", "Emails"}:
         if rows:
             _upsert_rows(table, rows, pk)
         return
@@ -1115,6 +1118,16 @@ def normalize_post_hashtags(post):
         post['hashtags'] = [tag.strip() for tag in post['hashtags'] if isinstance(tag, str) and tag.strip()]
     else:
         post['hashtags'] = []
+    for field in ('media', 'likes', 'dislikes', 'comments'):
+        value = post.get(field)
+        if isinstance(value, list):
+            continue
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                value = []
+        post[field] = value if isinstance(value, list) else []
     return post
 
 @app.route('/uploads/posts/<filename>')
